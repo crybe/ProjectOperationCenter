@@ -1,4 +1,4 @@
-# ⚡ Antigravity // Tactical Dashboard (Nexus Command Hub)
+# ⚡ Tactical Dashboard (Nexus Command Hub)
 
 ![Version](https://img.shields.io/badge/version-v2.5.5-emerald?style=flat-square)
 ![Status](https://img.shields.io/badge/status-stable-emerald?style=flat-square)
@@ -9,7 +9,7 @@ Ein hochmodernes, taktisches Dashboard zur Überwachung und Steuerung von Home-S
 ---
 
 ## 🛰️ Übersicht
-Das Antigravity Dashboard (Nexus Command Hub) dient als zentrale Kommandozentrale für technik-affine Homelab-Betreiber. Es vereint System-Metriken, Docker-Management und spezialisierte Hardware-Steuerung in einem konsistenten, taktischen Design.
+Das (Nexus Command Hub) dient als zentrale Kommandozentrale für technik-affine Homelab-Betreiber. Es vereint System-Metriken, Docker-Management und spezialisierte Hardware-Steuerung in einem konsistenten, taktischen Design.
 
 ### Hauptmerkmale
 - **Emerald Tactical Design:** Hochoptimierte Benutzeroberfläche mit Fokus auf Lesbarkeit und Ästhetik (Glassmorphism).
