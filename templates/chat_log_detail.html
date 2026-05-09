@@ -1,0 +1,641 @@
+{% extends "base.html" %}
+{% block title %}{{ entry.title }} – KI-Gespräche – DevHub{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+  /* Sticky Header Fix */
+  .topbar-sticky {
+    position: sticky; top: 0; z-index: 1000;
+    background: rgba(8,18,24,0.7); backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  
+  .chat-content-rendered pre { position: relative; }
+  .code-copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--muted); padding: 5px 10px; border-radius: 6px; cursor: pointer;
+    font-size: 10px; font-weight: 700; transition: all 0.2s; z-index: 10;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .code-copy-btn:hover { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 0 10px rgba(66,133,244,0.4); }
+  .code-copy-btn.copied { background: var(--green); color: white; border-color: var(--green); }
+  
+  .chat-content-rendered pre code.hljs { background: transparent; padding: 0; }
+  .chat-content-rendered pre {
+    background: #0d1117 !important;
+    border: 1px solid #30363d !important;
+    box-shadow: inset 0 1px 12px rgba(0,0,0,0.4);
+    border-radius: 12px; margin: 1.5em 0;
+  }
+  
+  .detail-live-badge {
+    display: flex; align-items:center; gap: 6px;
+    padding: 3px 10px; border-radius: 20px;
+    background: rgba(0,229,107,0.12); color: #00e56b;
+    border: 1px solid rgba(0,229,107,0.3);
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  
+  .scroll-top-btn {
+    position: fixed; bottom: 30px; right: 30px;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--accent); color: white; border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; opacity: 0; pointer-events: none;
+    transition: all 0.3s; z-index: 1001;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  }
+  .scroll-top-btn.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .scroll-top-btn:not(.visible) { transform: translateY(20px); }
+  .scroll-top-btn:hover { transform: scale(1.1); background: #5a9bff; }
+
+  .detail-search-wrap {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 5px 10px; min-width: 240px;
+  }
+  .detail-search-wrap input {
+    background: none; border: none; outline: none; color: var(--text);
+    font-size: 13px; width: 100%; min-width: 0;
+  }
+  .msg-search-highlight {
+    background: rgba(66,133,244,0.25); color: var(--accent);
+    padding: 0 2px; border-radius: 2px; border-bottom: 1px solid var(--accent);
+  }
+  .msg-search-highlight.current {
+    background: rgba(66,133,244,0.5); color: white;
+  }
+  .chat-msg.search-hidden { display: none; }
+  .chat-msg { animation: fadeInUp 0.4s ease forwards; opacity: 0; }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set meta = provider_meta.get(entry.provider, provider_meta.other) %}
+{% set is_live = live_sid and (entry.id == live_sid or entry.session_id == live_sid) %}
+{% set counts = namespace(user=0, assistant=0, system=0, chars=0, est_minutes=1) %}
+{% for msg in entry.messages %}
+  {% if msg.role == 'user' %}{% set counts.user = counts.user + 1 %}{% endif %}
+  {% if msg.role == 'assistant' %}{% set counts.assistant = counts.assistant + 1 %}{% endif %}
+  {% if msg.role == 'system' %}{% set counts.system = counts.system + 1 %}{% endif %}
+  {% if msg.content %}{% set counts.chars = counts.chars + (msg.content|length) %}{% endif %}
+{% endfor %}
+{% set counts.est_minutes = ((entry.messages|length * 2) + (counts.chars // 900)) %}
+{% if counts.est_minutes < 1 %}{% set counts.est_minutes = 1 %}{% endif %}
+<style>
+  .detail-shell { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
+  .detail-shell .dashboard-wrap { max-width: 980px !important; height: auto !important; overflow-y: visible !important; }
+  .detail-topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+  }
+  .detail-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+  }
+  .detail-head-copy {
+    min-width: 0;
+  }
+  .detail-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .detail-title {
+    display: block;
+    font-size: 24px;
+    line-height: 1.25;
+    font-weight: 700;
+    max-width: 760px;
+    color: var(--text);
+  }
+  .detail-subtitle {
+    margin: 8px 0 0;
+    max-width: 760px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .detail-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .detail-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .detail-meta-card {
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)),
+      rgba(0,0,0,0.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .detail-meta-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .detail-meta-value {
+    display: block;
+    font-size: 22px;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .detail-meta-note {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 18px;
+  }
+  .detail-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1;
+  }
+  .detail-tag strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .chat-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .chat-msg {
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.012)),
+      rgba(0,0,0,0.1);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.16);
+  }
+  .chat-msg-user {
+    border-color: rgba(66,133,244,0.22);
+    background:
+      linear-gradient(180deg, rgba(66,133,244,0.08), rgba(66,133,244,0.02)),
+      rgba(0,0,0,0.08);
+  }
+  .chat-msg-assistant {
+    border-color: color-mix(in srgb, {{ meta.color }} 24%, rgba(255,255,255,0.06));
+    background:
+      linear-gradient(180deg, color-mix(in srgb, {{ meta.color }} 10%, transparent), rgba(255,255,255,0.012)),
+      rgba(0,0,0,0.08);
+  }
+  .chat-msg-system {
+    border-style: dashed;
+    border-color: rgba(255,255,255,0.14);
+  }
+  .chat-role {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .chat-bubble {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+  .chat-content-rendered > :first-child { margin-top: 0; }
+  .chat-content-rendered > :last-child { margin-bottom: 0; }
+  .chat-content-rendered p,
+  .chat-content-rendered ul,
+  .chat-content-rendered ol,
+  .chat-content-rendered pre,
+  .chat-content-rendered blockquote {
+    margin: 0 0 1em;
+  }
+  .chat-content-rendered blockquote {
+    padding: 10px 14px;
+    border-left: 3px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+    color: var(--muted);
+  }
+  .chat-content-rendered code:not(pre code) {
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 0.95em;
+  }
+  @media (max-width: 980px) {
+    .detail-topbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .detail-toolbar {
+      justify-content: flex-start;
+    }
+    .detail-meta-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 720px) {
+    .detail-meta-grid {
+      grid-template-columns: 1fr;
+    }
+    .detail-head {
+      align-items: stretch;
+    }
+    .detail-title {
+      font-size: 21px;
+    }
+  }
+</style>
+<div class="detail-shell">
+<div class="topbar topbar-page topbar-sticky detail-topbar">
+  <div class="detail-head">
+    <a href="{{ url_for('chat_log.chat_log') }}" class="btn btn-sm btn-secondary" style="padding:6px 12px; border-radius:10px;">
+      <i data-lucide="arrow-left" style="width:16px;height:16px;"></i>
+    </a>
+    <div class="detail-head-copy">
+      <div class="detail-title-row">
+        <span class="provider-badge" style="--badge-color:{{ meta.color }}"><i data-lucide="{{ meta.icon }}" style="width:12px;height:12px;margin-right:6px;display:inline-block;vertical-align:middle;margin-top:-2px;"></i>{{ meta.label }}</span>
+        {% if is_live %}<span class="detail-live-badge"><span class="cl-live-dot-sm"></span>LIVE</span>{% endif %}
+      </div>
+      <span class="topbar-title detail-title">{{ entry.title }}</span>
+      <p class="detail-subtitle">Vollständige Unterhaltung mit Markdown-Rendering, Export und Schnellaktionen. Die Metadaten bleiben oben sichtbar, damit du auch in langen Chats schnell die Orientierung behältst.</p>
+    </div>
+  </div>
+  <div class="topbar-actions detail-toolbar">
+    <div class="detail-search-wrap" id="detailSearchWrap" style="display:none;">
+      <i data-lucide="search" style="width:13px;height:13px;color:var(--muted);flex-shrink:0;"></i>
+      <input type="text" id="detailSearch" placeholder="In Nachrichten suchen…" autocomplete="off">
+      <span id="detailSearchCount" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
+      <button onclick="closeDetailSearch()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0;line-height:1;">
+        <i data-lucide="x" style="width:13px;height:13px;"></i>
+      </button>
+    </div>
+    <button class="btn btn-sm btn-secondary" onclick="toggleDetailSearch()" id="detailSearchBtn" title="In Session suchen">
+      <i data-lucide="search" style="width:14px;height:14px;"></i>
+    </button>
+    <button class="btn btn-sm btn-secondary" onclick="summarizeSession()" id="summarizeBtn" title="Session via Ollama zusammenfassen">
+      <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Zusammenfassen
+    </button>
+    <button class="btn btn-sm btn-secondary" onclick="exportMarkdown()" title="Export als Markdown">
+      <i data-lucide="download" style="width:14px;height:14px;"></i> Export .md
+    </button>
+    <button class="btn btn-sm btn-secondary" onclick="toggleWide()" title="Breite umschalten">
+      <i data-lucide="maximize-2" style="width:14px;height:14px;"></i>
+    </button>
+    <button class="btn btn-sm btn-danger" onclick="deleteAndBack('{{ entry.id }}')">
+      <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+    </button>
+  </div>
+</div>
+
+<div id="summaryPanel" style="display:none; margin: 0; padding: 12px 20px; background: rgba(255,200,50,0.07); border-bottom: 1px solid rgba(255,200,50,0.15);">
+  <div style="display:flex;align-items:flex-start;gap:12px;max-width:860px;margin:0 auto;">
+    <i data-lucide="sparkles" style="width:16px;height:16px;color:#fbbf24;flex-shrink:0;margin-top:2px;"></i>
+    <div id="summaryText" style="font-size:13px;color:var(--text);line-height:1.7;flex:1;"></div>
+    <button onclick="document.getElementById('summaryPanel').style.display='none'" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:2px;flex-shrink:0;">
+      <i data-lucide="x" style="width:14px;height:14px;"></i>
+    </button>
+  </div>
+</div>
+<div class="content page-scroll" id="mainScroll">
+<div class="dashboard-wrap" id="detailWrap" style="max-width:860px; transition: max-width 0.3s ease; margin: 0 auto; padding: 40px 20px;">
+
+<div class="detail-meta-grid">
+  <section class="detail-meta-card">
+    <span class="detail-meta-label">Nachrichten</span>
+    <strong class="detail-meta-value">{{ entry.messages|length }}</strong>
+    <span class="detail-meta-note">{{ counts.user }} Prompts, {{ counts.assistant }} Antworten{% if counts.system %}, {{ counts.system }} System{% endif %}</span>
+  </section>
+  <section class="detail-meta-card">
+    <span class="detail-meta-label">Provider</span>
+    <strong class="detail-meta-value">{{ meta.label }}</strong>
+    <span class="detail-meta-note">{% if is_live %}Aktiv im Live-Fenster{% else %}Archivierte Session{% endif %}</span>
+  </section>
+  <section class="detail-meta-card">
+    <span class="detail-meta-label">Erstellt</span>
+    <strong class="detail-meta-value">{{ entry.created_at[:10] }}</strong>
+    <span class="detail-meta-note">{{ entry.created_at[11:] if entry.created_at|length > 10 else entry.created_at }}</span>
+  </section>
+  <section class="detail-meta-card">
+    <span class="detail-meta-label">Dauer ca.</span>
+    <strong class="detail-meta-value">{{ counts.est_minutes }} Min</strong>
+    <span class="detail-meta-note">Geschätzt aus Nachrichtenanzahl und Textmenge</span>
+  </section>
+  <section class="detail-meta-card">
+    <span class="detail-meta-label">Session</span>
+    <strong class="detail-meta-value">{{ 'Live' if is_live else 'Gespeichert' }}</strong>
+    <span class="detail-meta-note">{{ entry.session_id[:22] ~ '…' if entry.session_id and entry.session_id|length > 22 else (entry.session_id or entry.id) }}</span>
+  </section>
+</div>
+
+<div class="detail-tags">
+  <span class="detail-tag"><i data-lucide="message-square" style="width:12px;height:12px;"></i><strong>{{ entry.messages|length }}</strong> Einträge</span>
+  {% for tag in entry.tags %}
+  <span class="detail-tag"><i data-lucide="tag" style="width:12px;height:12px;"></i>{{ tag }}</span>
+  {% endfor %}
+</div>
+
+<div class="chat-thread">
+  {% for msg in entry.messages %}
+  <div class="chat-msg chat-msg-{{ msg.role }}" style="animation-delay: {{ loop.index0 * 0.05 }}s">
+    <div class="chat-role">
+      {% if msg.role == 'user' %}
+        <span class="role-icon" style="background:var(--accent); box-shadow: 0 0 10px rgba(66,133,244,0.3);"><i data-lucide="user" style="width:11px;height:11px;"></i></span> Du
+      {% elif msg.role == 'assistant' %}
+        <span class="role-icon" style="background:{{ meta.color }}; box-shadow: 0 0 10px {{ meta.color }}44;"><i data-lucide="cpu" style="width:11px;height:11px;"></i></span> <i data-lucide="{{ meta.icon }}" style="width:12px;height:12px;margin-right:6px;display:inline-block;vertical-align:middle;margin-top:-2px;"></i>{{ meta.label }}
+      {% else %}
+        <span class="role-icon" style="background:var(--muted)"><i data-lucide="settings" style="width:11px;height:11px;"></i></span> System
+      {% endif %}
+    </div>
+    <div class="chat-bubble">
+      <div class="chat-content-rendered" id="msg-{{ loop.index0 }}">{{ msg.content }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+</div>
+</div>
+</div>
+
+<button class="scroll-top-btn" id="scrollTopBtn" title="Nach oben">
+  <i data-lucide="chevron-up"></i>
+</button>
+
+<style>
+.role-icon {
+  width: 24px; height: 24px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: white; margin-right: 8px;
+}
+.chat-role { font-size: 12px; margin-bottom: 6px; }
+</style>
+
+<script>
+// --- In-Session Suche ---
+let _searchMatches = [], _searchIdx = 0;
+
+function toggleDetailSearch() {
+  const wrap = document.getElementById('detailSearchWrap');
+  const btn  = document.getElementById('detailSearchBtn');
+  const show = wrap.style.display === 'none';
+  wrap.style.display = show ? 'flex' : 'none';
+  btn.style.display  = show ? 'none' : '';
+  if (show) { document.getElementById('detailSearch').focus(); }
+  else { closeDetailSearch(); }
+}
+
+function closeDetailSearch() {
+  document.getElementById('detailSearchWrap').style.display = 'none';
+  document.getElementById('detailSearchBtn').style.display = '';
+  document.getElementById('detailSearch').value = '';
+  _runSearch('');
+}
+
+function _runSearch(q) {
+  _searchMatches = [];
+  document.querySelectorAll('.chat-msg').forEach(msg => {
+    const bubble = msg.querySelector('.chat-content-rendered');
+    if (!bubble) return;
+    if (!q) {
+      bubble.querySelectorAll('.msg-search-highlight').forEach(el => {
+        el.outerHTML = el.textContent;
+      });
+      bubble.normalize();
+      msg.classList.remove('search-hidden');
+      return;
+    }
+    // Reset vorherige Highlights
+    bubble.querySelectorAll('.msg-search-highlight').forEach(el => {
+      el.outerHTML = el.textContent;
+    });
+    bubble.normalize();
+
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    let found = false;
+    const walk = (node) => {
+      if (node.nodeType === 3) {
+        const text = node.textContent;
+        if (regex.test(text)) {
+          found = true;
+          const frag = document.createDocumentFragment();
+          let last = 0; regex.lastIndex = 0;
+          let m;
+          while ((m = regex.exec(text)) !== null) {
+            frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+            const mark = document.createElement('mark');
+            mark.className = 'msg-search-highlight';
+            mark.textContent = m[0];
+            frag.appendChild(mark);
+            last = m.index + m[0].length;
+          }
+          frag.appendChild(document.createTextNode(text.slice(last)));
+          node.parentNode.replaceChild(frag, node);
+        }
+      } else if (node.nodeType === 1 && node.tagName !== 'MARK') {
+        Array.from(node.childNodes).forEach(walk);
+      }
+    };
+    walk(bubble);
+    msg.classList.toggle('search-hidden', !found);
+    if (found) _searchMatches.push(...bubble.querySelectorAll('.msg-search-highlight'));
+  });
+  _searchIdx = 0;
+  _highlightCurrent();
+  const cnt = document.getElementById('detailSearchCount');
+  if (cnt) cnt.textContent = _searchMatches.length ? `${_searchIdx + 1}/${_searchMatches.length}` : (q ? '0 Treffer' : '');
+}
+
+function _highlightCurrent() {
+  _searchMatches.forEach((m, i) => m.classList.toggle('current', i === _searchIdx));
+  if (_searchMatches[_searchIdx]) {
+    _searchMatches[_searchIdx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!document.getElementById('detailSearch')) return;
+  if (e.key === 'f' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toggleDetailSearch(); }
+  if (document.getElementById('detailSearchWrap').style.display !== 'none') {
+    if (e.key === 'Enter') {
+      _searchIdx = e.shiftKey
+        ? (_searchIdx - 1 + _searchMatches.length) % Math.max(_searchMatches.length, 1)
+        : (_searchIdx + 1) % Math.max(_searchMatches.length, 1);
+      _highlightCurrent();
+      const cnt = document.getElementById('detailSearchCount');
+      if (cnt && _searchMatches.length) cnt.textContent = `${_searchIdx + 1}/${_searchMatches.length}`;
+    }
+    if (e.key === 'Escape') closeDetailSearch();
+  }
+});
+
+// --- Ende Suche ---
+
+function toggleWide() {
+  const wrap = document.getElementById('detailWrap');
+  wrap.style.maxWidth = (wrap.style.maxWidth === '100%' || wrap.style.maxWidth === '') ? '860px' : '100%';
+}
+
+async function summarizeSession() {
+  const btn = document.getElementById('summarizeBtn');
+  const panel = document.getElementById('summaryPanel');
+  const text = document.getElementById('summaryText');
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-2" style="width:14px;height:14px;"></i> Lädt…';
+  lucide.createIcons();
+  panel.style.display = 'block';
+  text.textContent = '⏳ Ollama generiert Zusammenfassung…';
+  try {
+    const r = await fetch('/api/chat-log/{{ entry.id }}/summarize', {method:'POST'});
+    const d = await r.json();
+    if (d.summary) {
+      text.textContent = d.summary;
+    } else {
+      text.textContent = '⚠️ ' + (d.error || 'Kein Ergebnis');
+    }
+  } catch(e) {
+    text.textContent = '⚠️ Fehler: ' + e;
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="sparkles" style="width:14px;height:14px;"></i> Zusammenfassen';
+  lucide.createIcons();
+}
+
+function exportMarkdown() {
+  const title = "{{ entry.title }}";
+  const provider = "{{ meta.label }}";
+  const date = "{{ entry.created_at }}";
+  
+  let md = "# " + title + "\n\n";
+  md += "- **Provider:** " + provider + "\n";
+  md += "- **Datum:** " + date + "\n";
+  md += "- **Tags:** {{ entry.tags | join(', ') }}\n\n";
+  md += "---\n\n";
+  
+  {% for msg in entry.messages %}
+  md += "### " + ("{{ msg.role }}" === "user" ? "Du" : provider) + "\n\n";
+  md += {{ msg.content | tojson }} + "\n\n";
+  {% endfor %}
+  
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "Chat_" + title.replace(/[^a-z0-9]/gi, '_') + ".md";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  marked.setOptions({
+    highlight: function(code, lang) {
+      if (lang && hljs.getLanguage(lang)) {
+        return hljs.highlight(code, { language: lang }).value;
+      }
+      return hljs.highlightAuto(code).value;
+    },
+    breaks: true
+  });
+
+  {% for msg in entry.messages %}
+  const el{{ loop.index0 }} = document.getElementById('msg-{{ loop.index0 }}');
+  if (el{{ loop.index0 }}) {
+    el{{ loop.index0 }}.innerHTML = marked.parse(el{{ loop.index0 }}.textContent);
+  }
+  {% endfor %}
+
+  document.querySelectorAll('pre').forEach((pre) => {
+    const btn = document.createElement('button');
+    btn.className = 'code-copy-btn';
+    btn.textContent = 'Copy';
+    btn.onclick = () => {
+      const code = pre.querySelector('code').innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    };
+    pre.appendChild(btn);
+  });
+
+  document.querySelectorAll('pre code').forEach((block) => {
+    hljs.highlightElement(block);
+  });
+  
+  // Scroll to Top Logic
+  const scrollBtn = document.getElementById('scrollTopBtn');
+  const scrollCont = document.getElementById('mainScroll');
+  
+  if(scrollCont) {
+    scrollCont.addEventListener('scroll', () => {
+      if (scrollCont.scrollTop > 300) {
+        scrollBtn.classList.add('visible');
+      } else {
+        scrollBtn.classList.remove('visible');
+      }
+    });
+  }
+  
+  scrollBtn.addEventListener('click', () => {
+    scrollCont.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  document.getElementById('detailSearch')?.addEventListener('input', (e) => {
+    _runSearch(e.target.value.trim());
+  });
+
+  if(window.lucide) lucide.createIcons();
+});
+
+async function deleteAndBack(id) {
+  if (!confirm('Gespräch löschen?')) return;
+  await fetch('/api/chat-log/' + id, { method: 'DELETE' });
+  location.href = '{{ url_for("chat_log.chat_log") }}';
+}
+</script>
+{% endblock %}

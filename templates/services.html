@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Dienste – DevHub{% endblock %}
+{% block head %}
+<!-- Log-Viewer Modal -->
+<style>
+  .log-modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .log-modal-bg.open { display: flex; }
+  .log-modal {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; width: min(860px, 95vw); max-height: 80vh;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  }
+  .log-modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .log-modal-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .log-modal-close {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 20px; line-height: 1; padding: 4px 8px; border-radius: 6px;
+    transition: color 0.15s;
+  }
+  .log-modal-close:hover { color: var(--text); }
+  .log-modal-body {
+    overflow-y: auto; padding: 14px 18px; flex: 1;
+  }
+  .log-pre {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11.5px; line-height: 1.7;
+    color: rgba(255,255,255,0.75); white-space: pre-wrap;
+    word-break: break-all; margin: 0;
+  }
+  .log-line-err  { color: #f87171; }
+  .log-line-warn { color: #fbbf24; }
+  .log-line-ok   { color: #4ade80; }
+  .svc-btn.svc-log {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.1);
+    font-size: 13px; padding: 2px 7px;
+  }
+  .svc-btn.svc-log:hover { background: rgba(255,255,255,0.1); }
+</style>
+
+<div class="log-modal-bg" id="logModalBg" onclick="if(event.target===this)closeLog()">
+  <div class="log-modal">
+    <div class="log-modal-head">
+      <span class="log-modal-title" id="logModalTitle">Logs</span>
+      <button class="log-modal-close" onclick="closeLog()">✕</button>
+    </div>
+    <div class="log-modal-body">
+      <pre class="log-pre" id="logModalPre">wird geladen…</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+function colorLine(line) {
+  const l = line.toLowerCase();
+  if (/error|fehler|failed|traceback|exception|crit/.test(l)) return `<span class="log-line-err">${line}</span>`;
+  if (/warn|warning/.test(l)) return `<span class="log-line-warn">${line}</span>`;
+  if (/start|ok|success|active|running/.test(l)) return `<span class="log-line-ok">${line}</span>`;
+  return line;
+}
+
+async function openLog(name, type) {
+  document.getElementById('logModalTitle').textContent = `📋 ${name}`;
+  document.getElementById('logModalPre').innerHTML = 'wird geladen…';
+  document.getElementById('logModalBg').classList.add('open');
+
+  const url = type === 'container'
+    ? `/api/container-log/${encodeURIComponent(name)}`
+    : `/api/service-log/${encodeURIComponent(name)}`;
+
+  try {
+    const d = await fetch(url).then(r => r.json());
+    if (!d.ok) {
+      document.getElementById('logModalPre').innerHTML = `<span class="log-line-err">Fehler: ${d.error}</span>`;
+      return;
+    }
+    const lines = d.lines.filter(l => l.trim());
+    document.getElementById('logModalPre').innerHTML =
+      lines.length ? lines.map(colorLine).join('
+') : '(keine Ausgabe)';
+    // Ans Ende scrollen
+    const body = document.querySelector('.log-modal-body');
+    body.scrollTop = body.scrollHeight;
+  } catch(e) {
+    document.getElementById('logModalPre').innerHTML = `<span class="log-line-err">${e}</span>`;
+  }
+}
+
+function closeLog() {
+  document.getElementById('logModalBg').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLog(); });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div>
+    <div class="eyebrow">System</div>
+    <span class="topbar-title">Dienste & Container</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn btn-secondary" onclick="loadAll()">↻ Aktualisieren</button>
+  </div>
+</div>
+
+<div class="content page-scroll">
+  <div class="dashboard-wrap">
+
+    <section class="surface-panel" style="margin-bottom:24px;">
+      <div class="panel-head"><div><div class="section-title">Systemd-Dienste</div><h2 id="svcHeading">wird geladen…</h2></div></div>
+      <div id="svcGrid" class="services-grid"></div>
+    </section>
+
+    <section class="surface-panel">
+      <div class="panel-head"><div><div class="section-title">Docker-Container</div><h2 id="ctHeading">wird geladen…</h2></div></div>
+      <div id="ctGrid" class="services-grid"></div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+function svcAction(name, action, isContainer) {
+  const url = isContainer 
+    ? `{{ url_for('api.api_container_action', name='NAME', action='ACTION') }}`.replace('NAME', name).replace('ACTION', action)
+    : `{{ url_for('api.api_service_action', name='NAME', action='ACTION') }}`.replace('NAME', name).replace('ACTION', action);
+  
+  const btn = document.querySelector(`[data-svc="${name}"][data-action="${action}"]`);
+  if(btn){ btn.disabled = true; btn.textContent = '…'; }
+  fetch(url, {method:'POST'}).then(r=>r.json()).then(d=>{
+    setTimeout(loadAll, 1500);
+  }).catch(()=>{ if(btn){ btn.disabled=false; btn.textContent=action; } });
+}
+
+function renderCard(name, state, running, isContainer, extra) {
+  const dot  = running ? 'dot-active' : 'dot-inactive';
+  const label= running ? 'aktiv' : (state || 'inaktiv');
+  const btns = isContainer
+    ? `<button class="svc-btn" data-svc="${name}" data-action="restart" onclick="svcAction('${name}','restart',true)">restart</button>
+       <button class="svc-btn svc-stop" data-svc="${name}" data-action="${running?'stop':'start'}" onclick="svcAction('${name}','${running?'stop':'start'}',true)">${running?'stop':'start'}</button>
+       <button class="svc-btn svc-log" onclick="openLog('${name}','container')" title="Logs anzeigen">📋</button>`
+    : `<button class="svc-btn" data-svc="${name}" data-action="restart" onclick="svcAction('${name}','restart',false)">restart</button>
+       <button class="svc-btn svc-stop" data-svc="${name}" data-action="${running?'stop':'start'}" onclick="svcAction('${name}','${running?'stop':'start'}',false)">${running?'stop':'start'}</button>
+       <button class="svc-btn svc-log" onclick="openLog('${name}','service')" title="Logs anzeigen">📋</button>`;
+  return `<div class="svc-card ${running?'svc-running':'svc-stopped'}">
+    <div class="svc-header">
+      <span class="svc-dot ${dot}"></span>
+      <span class="svc-name">${name}</span>
+    </div>
+    <div class="svc-state">${label}${extra ? '<br><small style=\'color:var(--muted);font-size:10px;\'>'+extra+'</small>' : ''}</div>
+    <div class="svc-actions">${btns}</div>
+  </div>`;
+}
+
+function loadAll() {
+  fetch('{{ url_for("api.api_services") }}').then(r=>r.json()).then(d=>{
+    if(d.error){ document.getElementById('svcHeading').textContent='Fehler: '+d.error; return; }
+
+    const svcs = d.services || {};
+    const svcNames = Object.keys(svcs).sort();
+    const runningCount = svcNames.filter(k=>svcs[k].active).length;
+    document.getElementById('svcHeading').textContent = `${runningCount} von ${svcNames.length} aktiv`;
+    document.getElementById('svcGrid').innerHTML = svcNames.map(name =>
+      renderCard(name, svcs[name].state, svcs[name].active, false, '')
+    ).join('');
+
+    const cts = d.containers || {};
+    const ctNames = Object.keys(cts).sort();
+    const ctRunning = ctNames.filter(k=>cts[k].running).length;
+    document.getElementById('ctHeading').textContent = `${ctRunning} von ${ctNames.length} laufen`;
+    document.getElementById('ctGrid').innerHTML = ctNames.map(name =>
+      renderCard(name, cts[name].status, cts[name].running, true, cts[name].image || '')
+    ).join('');
+  }).catch(e=>{ document.getElementById('svcHeading').textContent='Verbindungsfehler'; });
+}
+
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+{% endblock %}

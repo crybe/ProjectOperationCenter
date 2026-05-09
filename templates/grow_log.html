@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% block title %}Growbox Logbuch – DevHub{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  .growlog-timeline {
+    position: relative;
+    margin-top: 24px;
+  }
+  .growlog-timeline::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--accent), transparent);
+    opacity: 0.3;
+  }
+  .gl-entry {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    position: relative;
+  }
+  .gl-dot {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 2px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: var(--accent);
+    font-size: 18px;
+    z-index: 1;
+  }
+  .gl-card {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    transition: border-color 0.2s;
+  }
+  .gl-card:hover { border-color: rgba(255,255,255,0.15); }
+  .gl-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .gl-date {
+    font-size: 13px; font-weight: 600; color: var(--text);
+  }
+  .gl-day-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 20px;
+    background: rgba(66,133,244,0.15); color: var(--accent);
+    border: 1px solid rgba(66,133,244,0.3); font-weight: 700;
+  }
+  .gl-phase-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 20px;
+    background: rgba(0,229,107,0.1); color: #00e56b;
+    border: 1px solid rgba(0,229,107,0.2); font-weight: 600;
+    text-transform: capitalize;
+  }
+  .gl-metrics {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .gl-metric {
+    font-size: 12px; color: var(--muted);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .gl-metric span { color: var(--text); font-weight: 600; }
+  .gl-notes {
+    font-size: 13px; color: var(--text); line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  .gl-footer {
+    display: flex; justify-content: flex-end; margin-top: 10px;
+  }
+  .gl-delete-btn {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; padding: 4px; border-radius: 6px;
+    transition: color 0.2s;
+  }
+  .gl-delete-btn:hover { color: var(--danger, #f87171); }
+
+  .add-log-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 24px;
+    display: none;
+  }
+  .add-log-panel.open { display: block; }
+  .add-log-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .add-log-panel textarea {
+    width: 100%; box-sizing: border-box;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px; color: var(--text);
+    font-size: 13px; resize: vertical; margin-bottom: 12px;
+  }
+  .add-log-panel textarea:focus { outline: none; border-color: var(--accent); }
+  .add-log-panel input {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; color: var(--text);
+    font-size: 13px; width: 100%; box-sizing: border-box;
+  }
+  .add-log-panel input:focus { outline: none; border-color: var(--accent); }
+  .add-log-panel label { font-size: 11px; color: var(--muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px; }
+
+  .phase-sel {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .phase-btn {
+    padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+    cursor: pointer; transition: all 0.2s;
+  }
+  .phase-btn.active {
+    background: rgba(0,229,107,0.1); color: #00e56b;
+    border-color: rgba(0,229,107,0.3);
+  }
+
+  .watering-panel { margin-bottom: 24px; }
+  .watering-stats-row {
+    display: flex; gap: 24px; flex-wrap: wrap; margin-top: 12px;
+  }
+  .w-stat {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .w-stat-val {
+    font-size: 26px; font-weight: 700; color: #60a5fa; line-height: 1;
+  }
+  .w-stat-lab {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.05em; font-weight: 600;
+  }
+  .watering-chart-wrap {
+    height: 90px; margin-top: 18px; position: relative;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-sticky">
+  <span class="topbar-title">
+    <i data-lucide="leaf" style="width:18px;height:18px;margin-right:8px;vertical-align:-3px;color:#00e56b;"></i>
+    Growbox Logbuch
+  </span>
+  <div class="topbar-actions">
+    <button class="btn btn-primary btn-sm" onclick="toggleAddForm()">
+      <i data-lucide="plus" style="width:14px;height:14px;"></i> Eintrag
+    </button>
+  </div>
+</div>
+
+<div class="content page-scroll">
+<div class="dashboard-wrap" style="max-width:800px;">
+
+  <!-- Bewässerungs-Übersicht -->
+  <div class="surface-panel watering-panel">
+    <div class="panel-head panel-head-tight">
+      <div>
+        <div class="section-title">Bewässerung</div>
+        <h2 id="wTitle">wird geladen…</h2>
+      </div>
+      <span style="font-size:28px;line-height:1;">💧</span>
+    </div>
+    <div class="watering-stats-row" id="wStats"></div>
+    <div class="watering-chart-wrap">
+      <canvas id="wateringChart"></canvas>
+    </div>
+  </div>
+
+
+  <div class="add-log-panel" id="addLogPanel">
+    <div class="add-log-grid">
+      <div>
+        <label>Datum</label>
+        <input type="date" id="glDate">
+      </div>
+      <div>
+        <label>Tag #</label>
+        <input type="number" id="glDay" placeholder="z.B. 14" min="1">
+      </div>
+      <div>
+        <label>pH-Wert</label>
+        <input type="number" id="glPh" step="0.1" placeholder="6.2">
+      </div>
+      <div>
+        <label>EC-Wert</label>
+        <input type="number" id="glEc" step="0.01" placeholder="1.4">
+      </div>
+    </div>
+    <label>Phase</label>
+    <div class="phase-sel" id="phaseSel">
+      <button class="phase-btn" onclick="selPhase(this,'Keimung')">Keimung</button>
+      <button class="phase-btn" onclick="selPhase(this,'Sämling')">Sämling</button>
+      <button class="phase-btn" onclick="selPhase(this,'Vegi')">Vegi</button>
+      <button class="phase-btn" onclick="selPhase(this,'Blüte')">Blüte</button>
+      <button class="phase-btn" onclick="selPhase(this,'Spülen')">Spülen</button>
+      <button class="phase-btn" onclick="selPhase(this,'Ernte')">Ernte</button>
+    </div>
+    <label>Notizen</label>
+    <textarea id="glNotes" rows="3" placeholder="Beobachtungen, Maßnahmen, Probleme…"></textarea>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary btn-sm" onclick="saveEntry()">Speichern</button>
+      <button class="btn btn-secondary btn-sm" onclick="toggleAddForm()">Abbrechen</button>
+    </div>
+  </div>
+
+  {% if entries %}
+  <div class="growlog-timeline">
+    {% for e in entries %}
+    <div class="gl-entry" id="gle-{{ e.id }}">
+      <div class="gl-dot">🌿</div>
+      <div class="gl-card">
+        <div class="gl-header">
+          <span class="gl-date">{{ e.date }}</span>
+          {% if e.day %}<span class="gl-day-badge">Tag {{ e.day }}</span>{% endif %}
+          {% if e.phase %}<span class="gl-phase-badge">{{ e.phase }}</span>{% endif %}
+        </div>
+        {% if e.ph or e.ec %}
+        <div class="gl-metrics">
+          {% if e.ph %}<span class="gl-metric"><i data-lucide="droplet" style="width:12px;height:12px;color:#60a5fa;"></i> pH <span>{{ e.ph }}</span></span>{% endif %}
+          {% if e.ec %}<span class="gl-metric"><i data-lucide="zap" style="width:12px;height:12px;color:#fbbf24;"></i> EC <span>{{ e.ec }}</span></span>{% endif %}
+        </div>
+        {% endif %}
+        {% if e.notes %}
+        <div class="gl-notes">{{ e.notes }}</div>
+        {% endif %}
+        <div class="gl-footer">
+          <button class="gl-delete-btn" onclick="deleteEntry('{{ e.id }}')" title="Löschen">
+            <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:var(--muted);">
+    <i data-lucide="leaf" style="width:48px;height:48px;opacity:0.2;display:block;margin:0 auto 16px;"></i>
+    Noch keine Einträge. Starte dein Growlog!
+  </div>
+  {% endif %}
+
+</div>
+</div>
+
+<script>
+let selectedPhase = '';
+
+function selPhase(btn, phase) {
+  document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedPhase = phase;
+}
+
+function toggleAddForm() {
+  const p = document.getElementById('addLogPanel');
+  p.classList.toggle('open');
+  if (p.classList.contains('open')) {
+    document.getElementById('glDate').value = new Date().toISOString().slice(0,10);
+  }
+}
+
+async function saveEntry() {
+  const body = {
+    date:   document.getElementById('glDate').value,
+    day:    document.getElementById('glDay').value,
+    phase:  selectedPhase,
+    ph:     document.getElementById('glPh').value,
+    ec:     document.getElementById('glEc').value,
+    notes:  document.getElementById('glNotes').value.trim(),
+  };
+  if (!body.notes && !body.ph && !body.ec) {
+    alert('Bitte mindestens Notiz, pH oder EC angeben.');
+    return;
+  }
+  const r = await fetch('/api/grow-log', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  if (r.ok) { location.reload(); }
+  else { const d = await r.json(); alert(d.error || 'Fehler'); }
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Eintrag löschen?')) return;
+  await fetch(`/api/grow-log/${id}`, {method:'DELETE'});
+  const el = document.getElementById('gle-' + id);
+  if (el) el.remove();
+}
+
+// ── Bewässerungs-Chart ────────────────────────────────────────────────────
+(async () => {
+  let data;
+  try {
+    const r = await fetch('/api/watering-history');
+    data = await r.json();
+  } catch(e) { return; }
+
+  const { count, days_since_last, avg_interval_days, events } = data;
+
+  document.getElementById('wTitle').textContent =
+    count === 0 ? 'Noch keine Einträge' :
+    count === 1 ? '1 Bewässerung' : `${count} Bewässerungen`;
+
+  const stats = [];
+  if (days_since_last !== null) {
+    const d = days_since_last < 1 ? 'heute' : `vor ${days_since_last} Tagen`;
+    stats.push({ val: d, lab: 'Letzte Bewässerung' });
+  }
+  if (avg_interval_days !== null) {
+    stats.push({ val: `Ø ${avg_interval_days} Tage`, lab: 'Durchschnitt' });
+  }
+  if (count > 0) stats.push({ val: count, lab: 'Gesamt' });
+
+  document.getElementById('wStats').innerHTML = stats.map(s =>
+    `<div class="w-stat"><span class="w-stat-val">${s.val}</span><span class="w-stat-lab">${s.lab}</span></div>`
+  ).join('');
+
+  if (!events.length) return;
+
+  const now = Date.now();
+  const firstTs = Math.min(...events.map(e => e.ts));
+  // Punkte für Chart: Watering-Events + Jetzt-Marker
+  const points = events.map(e => ({ x: e.ts, y: 1 }));
+
+  new Chart(document.getElementById('wateringChart'), {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Bewässert',
+        data: points,
+        backgroundColor: 'rgba(96,165,250,0.9)',
+        pointRadius: 10,
+        pointHoverRadius: 13,
+        pointStyle: 'circle',
+      }, {
+        label: 'Heute',
+        data: [{ x: now, y: 1 }],
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        pointRadius: 6,
+        pointStyle: 'circle',
+        borderColor: 'rgba(255,255,255,0.3)',
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.datasetIndex === 1) return 'Heute';
+              const e = events[ctx.dataIndex];
+              return e.dt ? e.dt.slice(0, 10) : 'Bewässert';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'time',
+          time: { unit: 'day', displayFormats: { day: 'dd.MM.' } },
+          min: firstTs - 86400000 * 2,
+          max: now + 86400000 * 2,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: 'rgba(255,255,255,0.4)', maxTicksLimit: 8 },
+        },
+        y: {
+          display: false, min: 0.5, max: 1.5,
+        }
+      }
+    }
+  });
+})();
+
+</script>
+{% endblock %}

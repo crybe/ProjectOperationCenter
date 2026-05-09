@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}404 - Not Found - Shinra_Gate{% endblock %}
+{% block content %}
+<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; text-align:center; padding:40px;">
+    <div style="font-size:120px; font-weight:900; color:var(--red); opacity:0.1; position:absolute; z-index:0;">404</div>
+    <div style="position:relative; z-index:1;">
+        <i data-lucide="shield-alert" style="width:64px; height:64px; color:var(--red); margin-bottom:20px;"></i>
+        <h1 style="font-size:32px; font-weight:900; text-transform:uppercase; letter-spacing:4px; margin-bottom:10px;">Endpunkt_Nicht_Gefunden</h1>
+        <p style="color:var(--text-dim); max-width:400px; line-height:1.6;">Die angeforderte taktische Ressource ist im aktuellen Sektor nicht verfügbar oder wurde verschoben.</p>
+        <div style="margin-top:30px;">
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-primary" style="text-decoration:none; display:inline-flex; align-items:center; gap:10px;">
+                <i data-lucide="arrow-left" style="width:16px;"></i> Zurück zum Hauptquartier
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

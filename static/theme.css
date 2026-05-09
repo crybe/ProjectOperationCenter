@@ -1,0 +1,437 @@
+/* DevHub Theme Overrides – Cyber-Modern-Glass Theme */
+:root {
+  --bg: #020303;
+  --sidebar: #050606;
+  --surface: rgba(8, 10, 9, 0.82);
+  --surface2: rgba(13, 16, 15, 0.95);
+  --border: rgba(141, 255, 177, 0.12);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --text: #edf7ef;
+  --muted: #839485;
+  --accent: #8dffb1;
+  --green: #7fe39f;
+  --amber: #f0bf74;
+  --red: #ff7262;
+  --purple: #b194f0;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --sidebar-w: 280px;
+  --font-size: 14px;
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
+  --shadow-md: 0 8px 32px rgba(0,0,0,0.3);
+  --shadow-lg: 0 16px 48px rgba(0,0,0,0.5);
+}
+
+* {
+  box-sizing: border-box;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  background: 
+    radial-gradient(circle at 10% 10%, rgba(141,255,177,0.08), transparent 25%),
+    radial-gradient(circle at 90% 90%, rgba(177,148,240,0.05), transparent 25%),
+    linear-gradient(180deg, #010202 0%, #040505 50%, #020303 100%);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sidebar,
+.topbar,
+.hero-panel,
+.surface-panel,
+.stat-card,
+.widget-card,
+.column,
+.task-card,
+.modal,
+.metric-tile,
+.n8n-link-card,
+.health-card {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.sidebar {
+  background: linear-gradient(180deg, rgba(5, 6, 6, 0.95), rgba(2, 3, 3, 0.98));
+  border-right: 1px solid var(--border);
+  box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+}
+
+.sidebar-item {
+  border-radius: 8px;
+  margin: 2px 8px;
+  padding: 10px 12px;
+  color: var(--muted);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.sidebar-item.active {
+  background: rgba(141, 255, 177, 0.1);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(141, 255, 177, 0.2);
+}
+
+.sidebar-item.active .menu-icon {
+  text-shadow: 0 0 8px var(--accent);
+}
+
+.topbar {
+  background: rgba(5, 6, 6, 0.75);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.hero-panel,
+.surface-panel,
+.stat-card,
+.widget-card,
+.column,
+.task-card,
+.modal,
+.health-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+.surface-panel {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.health-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: linear-gradient(145deg, rgba(255,255,255,0.03), transparent);
+}
+
+.health-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 24px rgba(141, 255, 177, 0.1);
+}
+
+.health-card strong {
+  font-size: 24px;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.health-card-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.btn {
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  box-shadow: 0 4px 12px rgba(141, 255, 177, 0.3);
+}
+
+.btn-primary:hover {
+  background: #afffca;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(141, 255, 177, 0.4);
+}
+
+.hero-side-panel {
+  background: linear-gradient(160deg, rgba(14,22,20,0.95), rgba(6,9,9,0.98));
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+}
+
+.hero-side-stat strong {
+  font-size: 32px;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(141, 255, 177, 0.2);
+}
+
+.section-title {
+  color: var(--accent);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: 8px;
+}
+
+h2 {
+  font-size: 24px;
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+
+.panel-subline {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DevHub Visual Enhancement Patch
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Inter als primäre Schriftart */
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  letter-spacing: -0.01em;
+}
+
+/* ── Lucide Icons im Sidebar ───────────────────────────────────── */
+.menu-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  stroke: currentColor;
+  display: block;
+}
+.sidebar-item.active .menu-icon {
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+.cmd-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* ── Brand-Mark: SVG Icon mit Glow ────────────────────────────── */
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, rgba(141,255,177,0.15), rgba(141,255,177,0.05));
+  border: 1px solid rgba(141,255,177,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(141,255,177,0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.brand-mark svg {
+  color: var(--accent);
+}
+.brand-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.brand-subtitle {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+/* ── Sidebar Serverbar: animierter Puls-Dot ────────────────────── */
+.serverbar-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(141,255,177,0.4);
+  animation: server-pulse 2.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes server-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(141,255,177,0.4); }
+  50%       { box-shadow: 0 0 0 5px rgba(141,255,177,0); }
+}
+
+/* ── Topbar: Accent-Linie oben ─────────────────────────────────── */
+.topbar {
+  position: relative;
+}
+.topbar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(141,255,177,0.4) 30%, rgba(141,255,177,0.4) 70%, transparent);
+  pointer-events: none;
+}
+
+/* ── Surface Panels: leichter innerer Top-Glow ─────────────────── */
+.surface-panel,
+.hero-panel {
+  position: relative;
+  overflow: hidden;
+}
+.surface-panel::before,
+.hero-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  pointer-events: none;
+}
+
+/* ── Task-Cards: subtiles Hover-Glow ──────────────────────────── */
+.task-card:hover {
+  border-color: rgba(141,255,177,0.15) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(141,255,177,0.08) !important;
+}
+
+/* ── Sysinfo-Widget: Bars verbessert ──────────────────────────── */
+.si-track {
+  border-radius: 4px;
+  overflow: hidden;
+}
+.si-fill {
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(90deg, var(--accent), rgba(141,255,177,0.7));
+}
+.si-fill.si-warn   { background: linear-gradient(90deg, var(--amber), rgba(240,191,116,0.7)); }
+.si-fill.si-danger { background: linear-gradient(90deg, var(--red),   rgba(255,114,98,0.7)); }
+
+/* ── Buttons: font-weight & tracking verbessert ────────────────── */
+.btn {
+  font-family: "Inter", sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 13px;
+}
+
+/* ── Sidebar-Add-Project: Lucide Plus Icon ─────────────────────── */
+.sidebar-add-project {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Live Status Dot (Grow & Co.) ──────────────────────────────── */
+.status-indicator-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: server-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* ── Command Launcher: Icon alignment ─────────────────────────── */
+.command-launcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── h2 Typography verbessert ──────────────────────────────────── */
+h2 {
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+/* ── Section Title: tighter tracking ──────────────────────────── */
+.section-title {
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+/* ── Projekt-Karten: subtileres Hover ─────────────────────────── */
+.project-card-mini {
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.project-card-mini:hover {
+  transform: translateY(-2px);
+  border-color: rgba(141,255,177,0.2) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25) !important;
+}
+
+/* ── Service Cards: running state Glow ────────────────────────── */
+.svc-running {
+  border-color: rgba(127,227,159,0.2) !important;
+  background: linear-gradient(145deg, rgba(127,227,159,0.03), rgba(255,255,255,0.02)) !important;
+}
+
+/* ── Grow Extended Panel ─────────────────────────────────────────────────── */
+.grow-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.grow-lab {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.grow-val {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+.grow-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.grow-meta-row {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Stat-Val countUp: subtiler Pulse beim Laden ─────────────────────────── */
+@keyframes stat-pop {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.06); }
+  100% { transform: scale(1);    opacity: 1; }
+}
+.stat-val {
+  animation: stat-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Panel Hover: schärferer Accent-Glow ─────────────────────────────────── */
+.surface-panel {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.surface-panel:hover {
+  border-color: rgba(141, 255, 177, 0.1);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(141,255,177,0.06);
+}

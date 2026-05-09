@@ -1,0 +1,30 @@
+<article class="surface-panel insight-panel">
+  <div class="panel-head panel-head-tight">
+    <div><div class="section-title">{{ panel.title }}</div><h2 id="growMetricSource">Sensoren…</h2></div>
+    <div class="status-indicator-live"></div>
+  </div>
+  <div class="grow-stats-row">
+    <div class="grow-stat">
+      <span class="grow-lab">Temperatur</span>
+      <span class="grow-val" id="growTemp">–</span>
+    </div>
+    <div class="grow-stat">
+      <span class="grow-lab">Feuchtigkeit</span>
+      <span class="grow-val" id="growHumidity">–</span>
+    </div>
+    <div class="grow-stat">
+      <span class="grow-lab">VPD</span>
+      <span class="grow-val" id="growVpd">–</span>
+    </div>
+  </div>
+  <div class="grow-meta-row">
+    <span id="growLampLevel">Lampe: –</span>
+    <span id="growFanMeta">Lüfter: –</span>
+  </div>
+  <div class="metric-footer">
+    <span id="growWateringInfo">Letzte Bewässerung wird geladen…</span>
+  </div>
+  <div class="grow-chart-container">
+    <canvas id="growChart"></canvas>
+  </div>
+</article>

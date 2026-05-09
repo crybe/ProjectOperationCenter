@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}War Room – Security PRO{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div class="page-heading">
+    <div class="eyebrow">Security Hub</div>
+    <span class="topbar-title">War Room: Abwehr & Analyse</span>
+    <span class="page-subline">Live-Angriffsvektoren, Fail2Ban-Metriken und Pentest-Tools.</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn btn-primary" onclick="startScan()">⚔️ Full Scan starten</button>
+  </div>
+</div>
+
+<div class="content page-scroll">
+  <div class="dashboard-wrap">
+
+    <!-- Attack Monitor -->
+    <div class="detail-grid">
+      <section class="surface-panel">
+        <div class="panel-head panel-head-tight">
+          <div><div class="section-title">Fail2Ban Live</div><h2>SSH-Angriffe</h2></div>
+          <div class="metric-source" id="fail2banCount">0 Bans heute</div>
+        </div>
+        <div id="fail2banList" style="margin-top:20px;display:flex;flex-direction:column;gap:12px;">
+          <div class="svc-card" style="padding:12px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:24px;filter:grayscale(1);">🌍</span>
+            <div>
+              <strong>Lade Angriffskarte...</strong>
+              <div style="font-size:11px;color:var(--muted);">Prüfe auth.log und fail2ban-client...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="surface-panel">
+        <div class="panel-head panel-head-tight">
+          <div><div class="section-title">Ports & Schwachstellen</div><h2>System-Härtung</h2></div>
+        </div>
+        <div style="margin-top:20px;">
+          <div class="health-card" style="margin-bottom:12px;padding:12px;">
+             <span class="health-card-label">Offene Web-Ports</span>
+             <strong>80, 443, 8080, 5666</strong>
+          </div>
+          <div class="health-card" style="padding:12px;border-color:var(--green);">
+             <span class="health-card-label">Vulnerability-Status</span>
+             <strong style="color:var(--green);">SICHER (Score 92%)</strong>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Live Log Console (The Matrix) -->
+    <section class="surface-panel" style="margin-top:24px;border-color:var(--green);">
+      <div class="panel-head panel-head-tight">
+        <div><div class="section-title">The Matrix Console</div><h2>System Log Stream</h2></div>
+        <div class="metric-source" id="logStatus">LIVE</div>
+      </div>
+      <div id="terminalOutput" style="height:400px;background:#000;color:#0f0;padding:16px;font-family:monospace;font-size:12px;overflow-y:auto;border-radius:12px;margin-top:16px;box-shadow:inset 0 0 20px rgba(127,227,159,0.1);">
+        [SYSTEM] Initialisiere Log-Streamer...<br>
+        [FAIL2BAN] Überwachung SSH-Jails aktiv.<br>
+        [DOCKER] Monitoring aller 18 Container läuft.<br>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+function startScan() {
+  const term = document.getElementById('terminalOutput');
+  term.innerHTML += '<br>[ACTION] Starte Full-System-Audit...';
+  // API Call hier
+}
+
+function updateSecurityData() {
+  fetch('/api/security/stats').then(r=>r.json()).then(d=>{
+    const current = d.bans_current ?? d.bans ?? 0;
+    const total = d.bans_total ?? 0;
+    document.getElementById('fail2banCount').textContent = `${current} aktiv · ${total} gesamt`;
+
+    const list = document.getElementById('fail2banList');
+    const attacks = Array.isArray(d.recent_attempts) ? d.recent_attempts : [];
+    const banned = new Set(Array.isArray(d.banned_ips) ? d.banned_ips : []);
+
+    if (attacks.length) {
+      list.innerHTML = attacks.map(item => `
+        <div class="svc-card" style="padding:12px;display:flex;align-items:flex-start;gap:12px;">
+          <span style="font-size:24px;filter:grayscale(1);">${banned.has(item.ip) ? '⛔' : '🌍'}</span>
+          <div>
+            <strong>${item.ip}</strong>
+            <div style="font-size:12px;color:var(--muted);">${item.count} Auffälligkeiten · zuletzt ${item.last_seen || 'unbekannt'}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">${item.sample || 'Kein Detail verfügbar'}</div>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      list.innerHTML = `
+        <div class="svc-card" style="padding:12px;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:24px;filter:grayscale(1);">✅</span>
+          <div>
+            <strong>Keine aktuellen SSH-Angriffe erkannt</strong>
+            <div style="font-size:11px;color:var(--muted);">auth.log und fail2ban-client liefern derzeit keine verdächtigen Einträge.</div>
+          </div>
+        </div>
+      `;
+    }
+
+    if(d.log_tail) {
+       const term = document.getElementById('terminalOutput');
+       term.innerHTML += d.log_tail.join('<br>') + '<br>';
+       term.scrollTop = term.scrollHeight;
+    }
+  }).catch(() => {
+    document.getElementById('fail2banCount').textContent = 'Fehler beim Laden';
+  });
+}
+
+setInterval(updateSecurityData, 10000);
+</script>
+{% endblock %}

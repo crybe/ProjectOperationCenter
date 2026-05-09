@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevHub – Tactical Access</title>
+  <link rel="icon" href="/static/assets/favicon.png" type="image/png">
+  <link rel="preload" as="image" href="/static/assets/mascot_aerith.png?v={{ asset_version('assets/mascot_aerith.png') }}" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-deep: #060a10;
+      --bg-mid: #0b1120;
+      --surface: rgba(15, 25, 45, 0.65);
+      --surface-hover: rgba(20, 35, 60, 0.75);
+      --border: rgba(56, 189, 148, 0.15);
+      --border-bright: rgba(56, 189, 148, 0.35);
+      --emerald: #38bd94;
+      --emerald-glow: rgba(56, 189, 148, 0.4);
+      --emerald-dim: rgba(56, 189, 148, 0.08);
+      --cyan: #22d3ee;
+      --text: #e8edf5;
+      --text-muted: #6b7a8d;
+      --text-dim: #3d4f63;
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.08);
+      --radius: 16px;
+      --login-bg-image: image-set(
+        url('/static/assets/login.webp?v={{ asset_version("assets/login.webp") }}') type('image/webp'),
+        url('/static/assets/login.png?v={{ asset_version("assets/login.png") }}') type('image/png')
+      );
+      --mascot-bg-image: url('/static/assets/mascot_aerith.png?v={{ asset_version("assets/mascot_aerith.png") }}');
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #02070b;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      position: relative;
+      padding-left: 15%;
+    }
+
+    /* ── Animated Background ───────────────────────────── */
+    .bg-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      background-image: var(--login-bg-image);
+      background-size: cover;
+      background-position: center center;
+      background-repeat: no-repeat;
+    }
+
+    .bg-gradient {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(1, 7, 10, 0.92) 0%, rgba(1, 7, 10, 0.7) 34%, rgba(1, 7, 10, 0.22) 58%, rgba(1, 7, 10, 0.56) 100%),
+        linear-gradient(180deg, rgba(1, 8, 12, 0.18) 0%, rgba(1, 8, 12, 0.2) 48%, rgba(1, 8, 12, 0.82) 100%),
+        radial-gradient(ellipse 80% 60% at 18% 76%, rgba(56, 189, 148, 0.12) 0%, transparent 58%),
+        radial-gradient(ellipse 65% 55% at 75% 18%, rgba(34, 211, 238, 0.08) 0%, transparent 54%);
+    }
+
+    .grid-overlay {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(56, 189, 148, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 189, 148, 0.035) 1px, transparent 1px);
+      background-size: 60px 60px;
+      animation: gridDrift 25s linear infinite;
+      mask-image: linear-gradient(90deg, black, black 42%, transparent 78%);
+    }
+
+    @keyframes gridDrift {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(60px, 60px); }
+    }
+
+    /* ── Main Container ────────────────────────────────── */
+    .login-container {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 580px;
+      padding: 0 24px;
+      animation: containerEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+      filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.55));
+    }
+
+    @keyframes containerEnter {
+      from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.96);
+        filter: blur(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    }
+
+    .logo-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1;
+      text-transform: uppercase;
+      font-style: italic;
+    }
+
+    .logo-title .accent { color: var(--emerald); filter: drop-shadow(0 0 10px var(--emerald-glow)); }
+    .logo-title .dim { color: var(--text); }
+
+    .logo-subtitle {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--emerald);
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      margin-top: 12px;
+      opacity: 0.6;
+    }
+
+    /* ── Card ──────────────────────────────────────────── */
+    .login-card {
+      width: 100%;
+      background: rgba(3, 13, 18, 0.8);
+      backdrop-filter: blur(30px) saturate(1.5);
+      -webkit-backdrop-filter: blur(30px) saturate(1.5);
+      border: 1px solid rgba(89, 255, 214, 0.25);
+      border-radius: var(--radius);
+      padding: 36px 32px 32px;
+      position: relative;
+      overflow: hidden;
+      box-shadow:
+        0 28px 80px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    /* Card Background Image (Aerith) */
+    .card-bg-mascot {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image: var(--mascot-bg-image);
+      background-size: cover;
+      background-position: center;
+      opacity: 0.35;
+      filter: grayscale(1) brightness(0.6) contrast(1.4);
+      pointer-events: none;
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, var(--emerald) 50%, transparent 100%);
+      opacity: 0.5;
+      z-index: 10;
+    }
+
+    /* ── Form Content ───────────────────────────────────── */
+    .card-content {
+      position: relative;
+      z-index: 10;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+
+    .card-header-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(56, 189, 148, 0.1);
+      border: 1px solid rgba(56, 189, 148, 0.2);
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--emerald);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--emerald-glow);
+      animation: dotPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Fields ───────────────────────────────────── */
+    .field-group { margin-bottom: 24px; }
+    .field-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--emerald);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 10px;
+      opacity: 0.8;
+    }
+
+    .field-input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(56, 189, 148, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .field-input:focus {
+      border-color: var(--emerald);
+      background: rgba(56, 189, 148, 0.05);
+      box-shadow: 0 0 20px rgba(56, 189, 148, 0.1);
+    }
+
+    /* ── Button ─────────────────────────────────── */
+    .login-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--emerald);
+      color: #000;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      margin-top: 12px;
+      box-shadow: 0 10px 30px rgba(56, 189, 148, 0.2);
+    }
+
+    .login-btn:hover {
+      transform: translateY(-2px);
+      background: #4ae8b7;
+      box-shadow: 0 15px 40px rgba(56, 189, 148, 0.4);
+    }
+
+    /* ── Responsive ────────────────────────────────────── */
+    @media (max-width: 520px) {
+      body { justify-content: center; padding-left: 0; }
+      .bg-layer { background-position: center center; }
+      .bg-gradient {
+        background: linear-gradient(180deg, rgba(1, 7, 10, 0.6) 0%, rgba(1, 7, 10, 0.9) 100%);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background -->
+  <div class="bg-layer">
+    <div class="bg-gradient"></div>
+    <div class="grid-overlay"></div>
+  </div>
+
+  <!-- Main Login -->
+  <div class="login-container">
+
+    <!-- Login Card Partial -->
+    {% include 'partials/login_panel.html' %}
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const loginCard = document.getElementById('loginCard');
+      const mascotBg = document.getElementById('mascotBg');
+      const glow = document.getElementById('lifestreamGlow');
+      const ticker = document.getElementById('tickerText');
+      const passwordInput = document.getElementById('password');
+      const togglePassword = document.getElementById('togglePassword');
+      const themeToggle = document.getElementById('themeToggle');
+      const loginBtn = document.getElementById('loginBtn');
+      const loginForm = document.getElementById('loginForm');
+
+      let currentTheme = 'aerith';
+      const assets = {
+        aerith: "/static/assets/mascot_aerith.png?v={{ asset_version('assets/mascot_aerith.png') }}",
+        pigeon: "/static/assets/pigeon_tactical.jpg?v={{ asset_version('assets/pigeon_tactical.jpg') }}"
+      };
+
+      // 1. Lifestream Glow (Mouse Tracking)
+      loginCard.addEventListener('mousemove', (e) => {
+        const rect = loginCard.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        glow.style.opacity = '1';
+        glow.style.background = `radial-gradient(circle at ${x}px ${y}px, rgba(16, 185, 129, 0.15) 0%, transparent 40%)`;
+      });
+      loginCard.addEventListener('mouseleave', () => { glow.style.opacity = '0'; });
+
+      // 2. Mascot Interaction (Typing Password)
+      passwordInput.addEventListener('focus', () => {
+        mascotBg.style.transform = 'scale(1.1)';
+        mascotBg.style.filter = 'grayscale(1) brightness(0.8) contrast(1.5) saturate(1.5)';
+      });
+      passwordInput.addEventListener('blur', () => {
+        mascotBg.style.transform = 'scale(1)';
+        mascotBg.style.filter = 'grayscale(1) brightness(0.6) contrast(1.4)';
+      });
+
+      // 3. Ticker Logic
+      const msgs = [
+        'G.A.T.E. Security Node Active...',
+        'Monitoring Neural Pathways...',
+        'Encryption: AES-256 Enabled',
+        'System: Antigravity v4.0.0',
+        'Ready for Operator Auth...',
+        'Lifestream Sync: 99.8%'
+      ];
+      let msgIndex = 0;
+      setInterval(() => {
+        ticker.style.opacity = '0';
+        setTimeout(() => {
+          msgIndex = (msgIndex + 1) % msgs.length;
+          ticker.innerText = msgs[msgIndex];
+          ticker.style.opacity = '1';
+        }, 300);
+      }, 4000);
+
+      // 4. Password Toggle
+      togglePassword.addEventListener('click', () => {
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+      });
+
+      // 5. Success Animation Shutter
+      loginForm.addEventListener('submit', (e) => {
+        loginCard.style.transition = 'all 1s cubic-bezier(0.4, 0, 0.2, 1)';
+        loginCard.style.transform = 'scale(1.1)';
+        loginCard.style.opacity = '0';
+        loginCard.style.filter = 'blur(20px)';
+        loginBtn.innerText = 'SYNCHRONIZING...';
+      });
+
+      // Error State Mascot Feedback
+      if (document.getElementById('errorMessage')) {
+        mascotBg.style.filter = 'grayscale(1) brightness(0.5) contrast(1.4) hue-rotate(300deg)';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} – Files{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+<style>
+  .file-viewer-body { display: flex; flex-direction: column; height: 100%; position: relative; }
+  #monacoContainer { flex: 1; width: 100%; border-top: 1px solid var(--border); }
+  .viewer-meta { padding: 6px 12px; background: var(--surface2); font-size: 11px; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid var(--border); }
+  .viewer-lang { text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  .edit-active-info { color: var(--amber); font-weight: 600; display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <span class="topbar-title">{{ project.name }}</span>
+  <a href="{{ url_for('board.board',            pid=project.id) }}" class="tab">⊞ Board</a>
+  <a href="{{ url_for('files.files',            pid=project.id) }}" class="tab active">📁 Files</a>
+  <a href="{{ url_for('board.review',           pid=project.id) }}" class="tab">⎇ Code Review</a>
+  <a href="{{ url_for('board.project_activity', pid=project.id) }}" class="tab">● Aktivität</a>
+  <a href="{{ url_for('board.project_notes',    pid=project.id) }}" class="tab">📝 Notizen</a>
+  <div class="topbar-actions">
+    <a href="{{ url_for('board.project_edit', pid=project.id) }}" class="btn btn-secondary btn-sm">Bearbeiten</a>
+  </div>
+</div>
+
+<div class="content">
+  <div class="files-layout">
+    <aside class="file-tree-panel">
+      <div class="file-tree-header">
+        <span class="file-root-label">Dateien
+          <span id="watchDot" title="Auto-Refresh aktiv" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);margin-left:6px;vertical-align:middle;transition:background 0.3s;"></span>
+        </span>
+        {% if file_paths %}
+        <span style="font-size:10px;color:var(--muted);font-family:monospace;display:block;margin-top:3px;line-height:1.6;">
+          {% for p in file_paths %}{{ p }}<br>{% endfor %}
+        </span>
+        {% endif %}
+      </div>
+      <div class="file-tree" id="fileTree">{% if tree_html %}{{ tree_html }}{% else %}<div style="padding:20px;color:var(--muted);font-size:13px;">Keine Dateien.<br><a href="{{ url_for('board.project_edit', pid=project.id) }}" style="color:var(--accent);">→ Pfade eintragen</a></div>{% endif %}</div>
+    </aside>
+
+    <div class="file-viewer-panel">
+      <div class="file-viewer-header">
+        <span class="file-viewer-name" id="viewerName">Datei auswählen</span>
+        <span class="file-viewer-path" id="viewerPath"></span>
+        <span class="edit-active-info" id="editInfo">EDIT-MODUS</span>
+        <div style="margin-left:auto;display:flex;gap:6px;">
+          <button id="saveBtn"  class="btn btn-primary btn-sm"   style="display:none;" onclick="saveFile()">Speichern</button>
+          <button id="editBtn"  class="btn btn-secondary btn-sm" style="display:none;" onclick="toggleEdit()">Bearbeiten</button>
+          <button id="cancelBtn" class="btn btn-secondary btn-sm" style="display:none;" onclick="cancelEdit()">Abbrechen</button>
+        </div>
+      </div>
+      <div class="file-viewer-body" id="viewerBody">
+        <div class="viewer-meta" id="viewerMeta" style="display:none;">
+            <span id="lineCount">0 Zeilen</span>
+            <span class="viewer-lang" id="viewerLang">TEXT</span>
+        </div>
+        <div id="monacoContainer"></div>
+        <div class="file-empty-state" id="emptyState">
+          <div style="font-size:36px;margin-bottom:12px;">📄</div>
+          <div>Datei aus dem Verzeichnisbaum links auswählen</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PROJECT_ID = "{{ project.id }}";
+let editor = null;
+let editMode = false;
+let editPath = null;
+let editLang = 'text';
+let _rawContent = '';
+
+require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+
+function initMonaco() {
+    return new Promise(resolve => {
+        require(['vs/editor/editor.main'], function() {
+            monaco.editor.defineTheme('devhub-dark', {
+                base: 'vs-dark', inherit: true,
+                rules: [],
+                colors: {
+                    'editor.background': '#1c2333',
+                    'editor.lineHighlightBackground': '#21262d',
+                    'editorLineNumber.foreground': '#7d8590',
+                    'editorLineNumber.activeForeground': '#58a6ff',
+                }
+            });
+            editor = monaco.editor.create(document.getElementById('monacoContainer'), {
+                value: '', language: 'text', theme: 'devhub-dark',
+                readOnly: true, automaticLayout: true, fontSize: 13,
+                minimap: { enabled: false }, scrollBeyondLastLine: false,
+                padding: { top: 10, bottom: 10 }
+            });
+            resolve();
+        });
+    });
+}
+
+function loadFile(path, name) {
+    if (editMode && !confirm('Ungespeicherte Änderungen gehen verloren. Fortfahren?')) return;
+    if (editMode) cancelEdit();
+    
+    document.querySelectorAll('.tree-row.active').forEach(r => r.classList.remove('active'));
+    const li = document.querySelector(`.tree-file[data-path="${CSS.escape(path)}"]`);
+    if (li) li.querySelector('.tree-row').classList.add('active');
+
+    editPath = path;
+    document.getElementById('viewerName').textContent = name;
+    document.getElementById('viewerPath').textContent = path;
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('editBtn').style.display = 'none';
+    
+    fetch('{{ url_for("files.file_content", pid=project.id) }}?path=' + encodeURIComponent(path))
+        .then(r => r.json()).then(data => {
+            if (data.error) { alert(data.error); return; }
+            _rawContent = data.content;
+            editLang = data.lang;
+            
+            if (!editor) {
+                initMonaco().then(() => updateEditor(data.content, data.lang));
+            } else {
+                updateEditor(data.content, data.lang);
+            }
+            document.getElementById('editBtn').style.display = 'inline-flex';
+            document.getElementById('viewerMeta').style.display = 'flex';
+            document.getElementById('viewerLang').textContent = data.lang;
+            document.getElementById('lineCount').textContent = data.content.split('\n').length + ' Zeilen';
+        });
+}
+
+function updateEditor(content, lang) {
+    const model = monaco.editor.createModel(content, lang);
+    editor.setModel(model);
+    editor.updateOptions({ readOnly: true });
+}
+
+function toggleEdit() {
+    if (!editor || !editPath) return;
+    editMode = true;
+    editor.updateOptions({ readOnly: false });
+    document.getElementById('editBtn').style.display = 'none';
+    document.getElementById('saveBtn').style.display = 'inline-flex';
+    document.getElementById('cancelBtn').style.display = 'inline-flex';
+    document.getElementById('editInfo').style.display = 'inline';
+}
+
+function cancelEdit() {
+    editMode = false;
+    editor.setValue(_rawContent);
+    editor.updateOptions({ readOnly: true });
+    document.getElementById('editBtn').style.display = 'inline-flex';
+    document.getElementById('saveBtn').style.display = 'none';
+    document.getElementById('cancelBtn').style.display = 'none';
+    document.getElementById('editInfo').style.display = 'none';
+}
+
+function saveFile() {
+    const content = editor.getValue();
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = '…';
+    
+    fetch('{{ url_for("files.file_save", pid=project.id) }}', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: editPath, content: content})
+    }).then(r => r.json()).then(d => {
+        btn.disabled = false; btn.textContent = 'Speichern';
+        if (d.error) { alert('Fehler: ' + d.error); return; }
+        _rawContent = content;
+        editMode = false;
+        editor.updateOptions({ readOnly: true });
+        document.getElementById('editBtn').style.display = 'inline-flex';
+        document.getElementById('saveBtn').style.display = 'none';
+        document.getElementById('cancelBtn').style.display = 'none';
+        document.getElementById('editInfo').style.display = 'none';
+        document.getElementById('lineCount').textContent = content.split('\n').length + ' Zeilen';
+    });
+}
+
+function toggleDir(el) {
+    const li = el.closest('.tree-dir');
+    const ul = li.querySelector(':scope > ul.tree-list');
+    if (!ul) return;
+    const open = ul.style.display !== 'none';
+    ul.style.display = open ? 'none' : 'block';
+    el.querySelector('.tree-icon').textContent = open ? '📁' : '📂';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const first = document.querySelector('.tree-file[data-path]');
+    if (first) loadFile(first.dataset.path, first.querySelector('.tree-name').textContent);
+    startFileWatch();
+});
+
+let _watchHash = null;
+function startFileWatch() { fetchHash(); setInterval(checkWatch, 15000); }
+function fetchHash() { fetch('{{ url_for("files.files_mtime", pid=project.id) }}').then(r => r.json()).then(d => { _watchHash = d.hash; }); }
+function checkWatch() {
+    if (editMode) return;
+    fetch('{{ url_for("files.files_mtime", pid=project.id) }}').then(r => r.json()).then(d => {
+        if (_watchHash && d.hash !== _watchHash) { _watchHash = d.hash; flashDot('#73BF69'); refreshTree(); }
+    });
+}
+function flashDot(color) {
+    const dot = document.getElementById('watchDot');
+    if (!dot) return;
+    dot.style.background = color;
+    setTimeout(() => { dot.style.background = 'var(--muted)'; }, 1200);
+}
+function refreshTree() {
+    fetch('{{ url_for("files.files_tree", pid=project.id) }}').then(r => r.text()).then(html => {
+        document.getElementById('fileTree').innerHTML = html;
+        if (editPath) {
+            const li = document.querySelector(`.tree-file[data-path="${CSS.escape(editPath)}"]`);
+            if (li) li.querySelector('.tree-row').classList.add('active');
+        }
+    });
+}
+</script>
+{% endblock %}

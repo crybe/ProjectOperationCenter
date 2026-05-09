@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}KI Review – {{ task.title }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <span class="topbar-title">🤖 KI Code Review</span>
+  <a href="{{ url_for('board.board', pid=project.id) }}" class="tab">⊞ Board</a>
+  <div class="topbar-actions" style="gap:8px;">
+    <button class="btn btn-danger" onclick="reject()">✕ Ablehnen</button>
+    <button class="btn btn-primary" id="applyBtn" onclick="apply()" {% if not patch.syntax_ok %}title="Achtung: Syntax-Fehler vorhanden"{% endif %}>
+      ✓ Anwenden &amp; Erledigt
+    </button>
+  </div>
+</div>
+
+<div class="content page-scroll">
+<div class="ai-review-wrap">
+
+  <!-- Task-Info -->
+  <div class="ai-review-header">
+    <div class="ai-review-task">
+      <span class="eyebrow">Task</span>
+      <strong>{{ task.title }}</strong>
+      {% if task.description %}<span class="ai-review-desc">{{ task.description }}</span>{% endif %}
+    </div>
+    <div class="ai-review-meta">
+      <span class="ai-badge">{{ patch.model }}</span>
+      <span class="ai-badge">{{ patch.action }}</span>
+      <span class="ai-badge {% if patch.syntax_ok %}badge-ok{% else %}badge-err{% endif %}">
+        {% if patch.syntax_ok %}✓ Syntax OK{% else %}✗ Syntax-Fehler{% endif %}
+      </span>
+      <span style="font-size:12px;color:var(--muted);">{{ patch.generated_at }}</span>
+    </div>
+  </div>
+
+  <!-- Syntax-Fehler -->
+  {% if not patch.syntax_ok %}
+  <div class="ai-syntax-error">
+    <strong>⚠ Syntax-Fehler:</strong><br>
+    <code>{{ patch.syntax_error }}</code>
+  </div>
+  {% endif %}
+
+  <!-- Dateipfad -->
+  <div class="ai-file-path">
+    <span class="eyebrow">{{ patch.action | upper }}</span>
+    <code>{{ patch.file }}</code>
+  </div>
+
+  <!-- Code-Vergleich -->
+  <div class="ai-diff-wrap">
+    {% if patch.original %}
+    <div class="ai-diff-pane">
+      <div class="ai-diff-label">Original</div>
+      <pre class="ai-code ai-code-original"><code>{{ patch.original }}</code></pre>
+    </div>
+    {% endif %}
+    <div class="ai-diff-pane">
+      <div class="ai-diff-label {% if not patch.original %}ai-diff-label-new{% endif %}">
+        {% if patch.original %}Generiert{% else %}Neue Datei{% endif %}
+      </div>
+      <pre class="ai-code ai-code-new"><code id="generatedCode">{{ patch.content }}</code></pre>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<div class="design-toast" id="toast"></div>
+
+<script>
+const PID = "{{ project.id }}";
+const TID = "{{ task.id }}";
+
+function apply() {
+  const btn = document.getElementById('applyBtn');
+  btn.disabled = true; btn.textContent = '…';
+  fetch('{{ url_for("ai.ai_apply", pid=project.id, tid=task.id) }}', {method:'POST'})
+    .then(r=>r.json()).then(d=>{
+      if(d.ok){
+        showToast('✓ Datei gespeichert · Task erledigt', true);
+        setTimeout(()=>location.href=`{{ url_for("board.board", pid=project.id) }}`, 1200);
+      } else {
+        showToast('✗ Fehler: ' + d.error, false);
+        btn.disabled=false; btn.textContent='✓ Anwenden & Erledigt';
+      }
+    });
+}
+
+function reject() {
+  if(!confirm('Patch ablehnen? Task geht zurück zu Offen.')) return;
+  fetch('{{ url_for("ai.ai_reject", pid=project.id, tid=task.id) }}', {method:'POST'})
+    .then(()=>location.href=`{{ url_for("board.board", pid=project.id) }}`);
+}
+
+function showToast(msg, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'design-toast ' + (ok?'toast-ok':'toast-err') + ' toast-show';
+  setTimeout(()=>t.className='design-toast', 3000);
+}
+</script>
+{% endblock %}

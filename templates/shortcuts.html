@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}Terminal Shortcuts – DevHub{% endblock %}
+
+{% block head %}
+<style>
+  .shortcuts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .shortcut-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .shortcut-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .shortcut-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .shortcut-icon {
+    width: 36px; height: 36px;
+    background: rgba(66,133,244,0.12);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: var(--accent);
+  }
+  .shortcut-label {
+    font-size: 14px; font-weight: 600;
+    color: var(--text);
+  }
+  .shortcut-cmd {
+    font-family: 'Fira Code', 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--muted);
+    word-break: break-all;
+    flex: 1;
+  }
+  .shortcut-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .run-output {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    background: #0a0e12;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 10px;
+    max-height: 180px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    color: #a3e3a3;
+    display: none;
+  }
+  .run-output.visible { display: block; }
+  .add-shortcut-form {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    margin-top: 24px;
+  }
+  .add-shortcut-form .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .add-shortcut-form label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .add-shortcut-form input { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; color: var(--text); font-size: 13px; }
+  .add-shortcut-form input:focus { outline: none; border-color: var(--accent); }
+  .empty-shortcuts {
+    text-align: center; color: var(--muted); padding: 60px 20px;
+    font-size: 14px;
+  }
+  .empty-shortcuts i { opacity: 0.3; display: block; margin: 0 auto 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-sticky">
+  <span class="topbar-title">
+    <i data-lucide="terminal" style="width:18px;height:18px;margin-right:8px;vertical-align:-3px;"></i>
+    Terminal Shortcuts
+  </span>
+  <div class="topbar-actions">
+    <button class="btn btn-primary btn-sm" onclick="openAddForm()">
+      <i data-lucide="plus" style="width:14px;height:14px;"></i> Shortcut
+    </button>
+  </div>
+</div>
+
+<div class="content page-scroll">
+<div class="dashboard-wrap" style="max-width:1100px;">
+
+  <div class="add-shortcut-form" id="addForm" style="display:none;">
+    <div class="form-group" style="flex:1;min-width:140px;">
+      <label>Label</label>
+      <input type="text" id="scLabel" placeholder="z.B. Neustart Bot" autocomplete="off">
+    </div>
+    <div class="form-group" style="flex:2;min-width:200px;">
+      <label>Befehl</label>
+      <input type="text" id="scCmd" placeholder="sudo systemctl restart Tactical-Bot-Core" autocomplete="off">
+    </div>
+    <div class="form-group" style="min-width:120px;">
+      <label>Icon</label>
+      <input type="text" id="scIcon" placeholder="terminal" autocomplete="off">
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary btn-sm" onclick="saveShortcut()">Speichern</button>
+      <button class="btn btn-secondary btn-sm" onclick="closeAddForm()">Abbrechen</button>
+    </div>
+  </div>
+
+  <div id="shortcutsGrid" class="shortcuts-grid">
+    <div class="empty-shortcuts">
+      <i data-lucide="terminal" style="width:48px;height:48px;"></i>
+      Noch keine Shortcuts. Lege einen an!
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+let shortcuts = [];
+
+async function loadShortcuts() {
+  const r = await fetch('/api/shortcuts');
+  shortcuts = await r.json();
+  render();
+}
+
+function render() {
+  const grid = document.getElementById('shortcutsGrid');
+  if (!shortcuts.length) {
+    grid.innerHTML = `<div class="empty-shortcuts">
+      <i data-lucide="terminal" style="width:48px;height:48px;"></i>
+      Noch keine Shortcuts. Lege einen an!
+    </div>`;
+    lucide.createIcons();
+    return;
+  }
+  grid.innerHTML = shortcuts.map(sc => `
+    <div class="shortcut-card" id="card-${sc.id}">
+      <div class="shortcut-header">
+        <div class="shortcut-icon">
+          <i data-lucide="${sc.icon || 'terminal'}" style="width:18px;height:18px;"></i>
+        </div>
+        <span class="shortcut-label">${esc(sc.label)}</span>
+      </div>
+      <div class="shortcut-cmd">${esc(sc.cmd)}</div>
+      <div class="run-output" id="out-${sc.id}"></div>
+      <div class="shortcut-actions">
+        <button class="btn btn-sm btn-primary" onclick="runShortcut('${sc.id}')">
+          <i data-lucide="play" style="width:13px;height:13px;"></i> Ausführen
+        </button>
+        <button class="btn btn-sm btn-danger" onclick="deleteShortcut('${sc.id}')">
+          <i data-lucide="trash-2" style="width:13px;height:13px;"></i>
+        </button>
+      </div>
+    </div>
+  `).join('');
+  lucide.createIcons();
+}
+
+async function runShortcut(id) {
+  const out = document.getElementById('out-' + id);
+  out.classList.add('visible');
+  out.textContent = '⏳ Wird ausgeführt…';
+  try {
+    const r = await fetch(`/api/shortcuts/${id}/run`, {method:'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      out.style.color = '#a3e3a3';
+      out.textContent = d.stdout || '✓ Abgeschlossen (kein Output)';
+    } else {
+      out.style.color = '#f87171';
+      out.textContent = d.stderr || d.error || 'Fehler';
+    }
+  } catch(e) {
+    out.style.color = '#f87171';
+    out.textContent = 'Netzwerkfehler: ' + e;
+  }
+}
+
+async function deleteShortcut(id) {
+  if (!confirm('Shortcut löschen?')) return;
+  await fetch(`/api/shortcuts/${id}`, {method:'DELETE'});
+  loadShortcuts();
+}
+
+function openAddForm() {
+  document.getElementById('addForm').style.display = 'flex';
+  document.getElementById('scLabel').focus();
+}
+function closeAddForm() {
+  document.getElementById('addForm').style.display = 'none';
+  document.getElementById('scLabel').value = '';
+  document.getElementById('scCmd').value = '';
+  document.getElementById('scIcon').value = '';
+}
+
+async function saveShortcut() {
+  const label = document.getElementById('scLabel').value.trim();
+  const cmd   = document.getElementById('scCmd').value.trim();
+  const icon  = document.getElementById('scIcon').value.trim() || 'terminal';
+  if (!label || !cmd) { alert('Label und Befehl sind erforderlich'); return; }
+  const r = await fetch('/api/shortcuts', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({label, cmd, icon})
+  });
+  if (r.ok) { closeAddForm(); loadShortcuts(); }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+document.addEventListener('DOMContentLoaded', loadShortcuts);
+</script>
+{% endblock %}

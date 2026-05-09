@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Data & Database
+data/*
+!data/.gitkeep
+*.db
+*.sqlite
+backups/
+berichte/
+logs/
+*.log
+
+# Environment & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.bak
+*.old
+*.orig
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+.eslintcache
+.stylelintcache
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db

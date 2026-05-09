@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Design-Editor – DevHub{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div>
+    <div class="eyebrow">Anpassung</div>
+    <span class="topbar-title">Design-Editor</span>
+  </div>
+  <div class="topbar-actions" style="gap:8px;">
+    <button class="btn btn-secondary" onclick="resetTheme()">↺ Zurücksetzen</button>
+    <button class="btn btn-primary" id="saveBtn" onclick="saveTheme()">Speichern</button>
+  </div>
+</div>
+
+<div class="content page-scroll">
+<div class="design-wrap">
+
+  <!-- Preset-Leiste -->
+  <section class="design-section">
+    <div class="design-section-title">Preset-Themes</div>
+    <div class="preset-row">
+      {% for p in presets %}
+      <button class="preset-btn" onclick="applyPreset('{{ p }}')">{{ p }}</button>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Farben -->
+  <section class="design-section">
+    <div class="design-section-title">Farben</div>
+    <div class="design-grid">
+      {% set color_vars = [
+        ('--bg',       'Hintergrund'),
+        ('--sidebar',  'Sidebar'),
+        ('--surface',  'Surface'),
+        ('--surface2', 'Surface 2'),
+        ('--border',   'Rahmen'),
+        ('--text',     'Text'),
+        ('--muted',    'Gedämpft'),
+        ('--accent',   'Akzent'),
+        ('--green',    'Grün'),
+        ('--amber',    'Bernstein'),
+        ('--red',      'Rot'),
+        ('--purple',   'Lila'),
+      ] %}
+      {% for var, label in color_vars %}
+      <div class="design-item">
+        <label class="design-label">{{ label }}</label>
+        <div class="design-color-row">
+          <input type="color" class="design-color-picker"
+                 id="pick_{{ var[2:] }}"
+                 data-var="{{ var }}"
+                 value="{{ current.get(var, '#000000') }}"
+                 oninput="liveUpdate(this)">
+          <input type="text" class="design-color-text"
+                 id="txt_{{ var[2:] }}"
+                 data-var="{{ var }}"
+                 value="{{ current.get(var, '#000000') }}"
+                 oninput="textUpdate(this)"
+                 maxlength="9" autocomplete="off">
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Abstände & Schrift -->
+  <section class="design-section">
+    <div class="design-section-title">Layout & Schrift</div>
+    <div class="design-grid design-grid-2">
+
+      <div class="design-item">
+        <label class="design-label">Border Radius</label>
+        <div class="design-range-row">
+          <input type="range" min="0" max="24" step="1"
+                 id="range_radius"
+                 value="{{ current.get('--radius','8px') | replace('px','') }}"
+                 oninput="rangeUpdate(this, '--radius', 'px')"
+                 class="design-range">
+          <span class="design-range-val" id="val_radius">{{ current.get('--radius','8px') }}</span>
+        </div>
+      </div>
+
+      <div class="design-item">
+        <label class="design-label">Sidebar-Breite</label>
+        <div class="design-range-row">
+          <input type="range" min="180" max="320" step="4"
+                 id="range_sidebar-w"
+                 value="{{ current.get('--sidebar-w','240px') | replace('px','') }}"
+                 oninput="rangeUpdate(this, '--sidebar-w', 'px')"
+                 class="design-range">
+          <span class="design-range-val" id="val_sidebar-w">{{ current.get('--sidebar-w','240px') }}</span>
+        </div>
+      </div>
+
+      <div class="design-item">
+        <label class="design-label">Schriftgröße</label>
+        <div class="design-range-row">
+          <input type="range" min="12" max="18" step="1"
+                 id="range_font-size"
+                 value="{{ current.get('--font-size','14px') | replace('px','') }}"
+                 oninput="rangeUpdate(this, '--font-size', 'px')"
+                 class="design-range">
+          <span class="design-range-val" id="val_font-size">{{ current.get('--font-size','14px') }}</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- CSS-Vorschau -->
+  <section class="design-section">
+    <div class="design-section-title">Generiertes CSS</div>
+    <pre class="design-css-preview" id="cssPreview"></pre>
+  </section>
+
+</div>
+</div>
+
+<div class="design-toast" id="toast"></div>
+
+<script>
+// Alle aktuellen Variablen (vom Server)
+const DEFAULTS = {{ defaults | tojson }};
+let currentVars = {{ current | tojson }};
+
+function applyVarsToDoc(vars) {
+  const root = document.documentElement;
+  for (const [k, v] of Object.entries(vars)) {
+    root.style.setProperty(k, v);
+    if (k === '--font-size') document.body.style.fontSize = v;
+  }
+  updateCssPreview(vars);
+}
+
+function liveUpdate(el) {
+  const varName = el.dataset.var;
+  const val = el.value;
+  currentVars[varName] = val;
+  // Sync text input
+  const txtId = 'txt_' + varName.slice(2);
+  const txt = document.getElementById(txtId);
+  if (txt) txt.value = val;
+  applyVarsToDoc(currentVars);
+}
+
+function textUpdate(el) {
+  const varName = el.dataset.var;
+  const val = el.value.trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(val)) {
+    currentVars[varName] = val;
+    const pickId = 'pick_' + varName.slice(2);
+    const pick = document.getElementById(pickId);
+    if (pick) pick.value = val.slice(0,7);
+    applyVarsToDoc(currentVars);
+  }
+}
+
+function rangeUpdate(el, varName, unit) {
+  const val = el.value + unit;
+  currentVars[varName] = val;
+  const valEl = document.getElementById('val_' + varName.slice(2));
+  if (valEl) valEl.textContent = val;
+  applyVarsToDoc(currentVars);
+}
+
+function updateCssPreview(vars) {
+  const lines = [':root {'];
+  for (const [k, v] of Object.entries(vars)) {
+    lines.push('  ' + k + ': ' + v + ';');
+  }
+  lines.push('}');
+  const pre = document.getElementById('cssPreview');
+  if (pre) pre.textContent = lines.join('\n');
+}
+
+function saveTheme() {
+  const btn = document.getElementById('saveBtn');
+  btn.textContent = '…';
+  btn.disabled = true;
+  fetch('/design/save', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(currentVars)
+  }).then(r => r.json()).then(d => {
+    showToast(d.ok ? '✓ Theme gespeichert' : '✗ Fehler: ' + d.error, d.ok);
+    btn.textContent = 'Speichern';
+    btn.disabled = false;
+  }).catch(() => {
+    showToast('✗ Verbindungsfehler', false);
+    btn.textContent = 'Speichern';
+    btn.disabled = false;
+  });
+}
+
+function applyPreset(name) {
+  fetch('/design/preset/' + encodeURIComponent(name), {method: 'POST'})
+    .then(r => r.json()).then(d => {
+      if (!d.ok) { showToast('✗ Fehler', false); return; }
+      currentVars = {...currentVars, ...d.vars};
+      // Update all pickers and texts
+      for (const [k, v] of Object.entries(d.vars)) {
+        const key = k.slice(2);
+        const pick = document.getElementById('pick_' + key);
+        const txt  = document.getElementById('txt_'  + key);
+        const rng  = document.getElementById('range_' + key);
+        const val  = document.getElementById('val_'  + key);
+        if (pick) pick.value = v.slice(0,7);
+        if (txt)  txt.value  = v;
+        if (rng)  { rng.value = parseInt(v); }
+        if (val)  val.textContent = v;
+      }
+      applyVarsToDoc(currentVars);
+      showToast('✓ ' + name + ' angewendet', true);
+    });
+}
+
+function resetTheme() {
+  if (!confirm('Theme auf Standard zurücksetzen?')) return;
+  fetch('/design/reset', {method: 'POST'}).then(r => r.json()).then(() => {
+    location.reload();
+  });
+}
+
+function showToast(msg, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'design-toast ' + (ok ? 'toast-ok' : 'toast-err') + ' toast-show';
+  setTimeout(() => t.className = 'design-toast', 2500);
+}
+
+// Init: aktuelle Vars auf Doc anwenden (für Live-Vorschau)
+applyVarsToDoc(currentVars);
+updateCssPreview(currentVars);
+</script>
+{% endblock %}

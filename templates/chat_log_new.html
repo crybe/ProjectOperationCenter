@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Gespräch eintragen – DevHub{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <a href="{{ url_for('chat_log.chat_log') }}" class="btn btn-sm">
+      <i data-lucide="arrow-left" style="width:14px;height:14px;"></i>
+    </a>
+    <div>
+      <div class="eyebrow">KI-Protokoll</div>
+      <span class="topbar-title">Gespräch eintragen</span>
+    </div>
+  </div>
+</div>
+
+<div class="content page-scroll">
+<div class="dashboard-wrap" style="max-width:680px;">
+<div class="surface-panel" style="padding:28px;display:flex;flex-direction:column;gap:16px;">
+
+  <label class="form-label">Titel
+    <input class="form-input" id="inTitle" placeholder="z.B. Growbox Fehlersuche mit Claude">
+  </label>
+  <label class="form-label">KI-Anbieter
+    <select class="form-input" id="inProvider">
+      <option value="claude">Claude</option>
+      <option value="gemini">Gemini</option>
+      <option value="codex">Codex</option>
+      <option value="chatgpt">ChatGPT</option>
+      <option value="other">Sonstige</option>
+    </select>
+  </label>
+  <label class="form-label">Tags (kommagetrennt)
+    <input class="form-input" id="inTags" placeholder="growbox, debug, python">
+  </label>
+  <label class="form-label">
+    Gespräch – <code>user:</code> oder <code>assistant:</code> pro Zeile
+    <textarea class="form-input" id="inMessages" rows="14" placeholder="user: Hallo, ich habe ein Problem…
+assistant: Ich schaue mir das an…
+user: Danke!"></textarea>
+  </label>
+
+  <div id="errMsg" style="color:var(--red);font-size:13px;display:none;"></div>
+
+  <div style="display:flex;gap:8px;justify-content:flex-end;">
+    <a href="{{ url_for('chat_log.chat_log') }}" class="btn">Abbrechen</a>
+    <button class="btn btn-primary" onclick="saveChat()">Speichern</button>
+  </div>
+
+</div>
+</div>
+</div>
+
+<style>
+.form-label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted); }
+.form-input {
+  background:var(--bg); border:1px solid var(--border); border-radius:7px;
+  padding:8px 10px; color:var(--text); font-size:13px; font-family:inherit;
+}
+.form-input:focus { outline:none; border-color:var(--accent); }
+textarea.form-input { resize:vertical; }
+</style>
+
+<script>
+function parseMessages(text) {
+  const lines = text.split('\n');
+  const msgs = []; let cur = null;
+  for (const line of lines) {
+    const m = line.match(/^(user|assistant|system):\s*(.*)/i);
+    if (m) { if (cur) msgs.push(cur); cur = { role: m[1].toLowerCase(), content: m[2] }; }
+    else if (cur) cur.content += '\n' + line;
+  }
+  if (cur) msgs.push(cur);
+  return msgs.map(m => ({ ...m, content: m.content.trim() }));
+}
+
+async function saveChat() {
+  const errEl = document.getElementById('errMsg');
+  const messages = parseMessages(document.getElementById('inMessages').value.trim());
+  if (!messages.length) {
+    errEl.textContent = 'Bitte mindestens eine Nachricht eingeben (user: …)';
+    errEl.style.display = 'block'; return;
+  }
+  const tags = document.getElementById('inTags').value.trim();
+  const res = await fetch('/api/chat-log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title:    document.getElementById('inTitle').value.trim(),
+      provider: document.getElementById('inProvider').value,
+      messages,
+      tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+    })
+  });
+  if (res.ok) location.href = '{{ url_for("chat_log.chat_log") }}';
+  else {
+    const d = await res.json().catch(() => ({}));
+    errEl.textContent = d.error || 'Fehler'; errEl.style.display = 'block';
+  }
+}
+</script>
+{% endblock %}

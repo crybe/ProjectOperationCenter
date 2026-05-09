@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}System & Design - DevHub{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="topbar-title">System & Design</div>
+  <a href="{{ url_for('system_design') }}" class="tab {% if request.endpoint == 'system_design' %}active{% endif %}">CSS Editor</a>
+  <a href="{{ url_for('system_extensions') }}" class="tab {% if request.endpoint == 'system_extensions' %}active{% endif %}">Extensions</a>
+</div>
+
+<div class="dashboard-wrap">
+  <div class="form-card" style="max-width: 1000px;">
+    <h2 class="form-title">Custom CSS Editor</h2>
+    <p style="color:var(--muted); margin-bottom: 20px;">Hier kannst du das Design der Anwendung live anpassen. Änderungen werden in <code>static/custom.css</code> gespeichert.</p>
+    
+    <form action="{{ url_for('system_design') }}" method="POST">
+      <div class="form-group" style="height: 500px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+        <textarea name="css_content" class="edit-area" style="height: 100%;">{{ css_content }}</textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Design Speichern</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

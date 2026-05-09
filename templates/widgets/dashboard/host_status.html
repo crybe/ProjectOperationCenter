@@ -1,0 +1,22 @@
+<article class="surface-panel spotlight-card" id="healthHostCard">
+  <div class="panel-head panel-head-tight">
+    <div>
+      <div class="section-title">{{ panel.title }}</div>
+      <h2 id="healthSummary">Prüfe…</h2>
+    </div>
+    <div class="status-indicator"></div>
+  </div>
+  <div class="health-body">
+    <div class="health-main-stat">RPi5</div>
+    <div class="health-meta">Ubuntu Server · localhost</div>
+  </div>
+  <div class="ops-ribbon">
+    <span class="ops-chip"><strong>{{ dashboard_summary.active_projects }}</strong> aktiv</span>
+    <span class="ops-chip"><strong>{{ open_tasks }}</strong> offen</span>
+    <span class="ops-chip"><strong>{{ dashboard_summary.review_tasks }}</strong> in Review</span>
+    <span class="ops-chip"><strong>{{ done_tasks }}</strong> abgeschlossen</span>
+  </div>
+  <div class="metric-footer">
+    <a href="{{ url_for('api.services') }}" class="metric-link">Dienste verwalten →</a>
+  </div>
+</article>

@@ -1,0 +1,669 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} – Board – DevHub{% endblock %}
+
+{% block head %}
+<style>
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.board-shell { display:flex; flex-direction:column; flex:1; overflow:hidden; min-height:0; }
+
+.board-topbar {
+  flex-shrink:0;
+  background: rgba(8,18,24,0.8); backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  padding: 0 20px;
+}
+.board-topbar-main {
+  display:flex; align-items:center; gap:14px;
+  padding: 12px 0 10px;
+}
+.board-project-info { flex:1; min-width:0; }
+.board-project-name {
+  font-size:20px; font-weight:700; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.board-project-desc {
+  font-size:12px; color:var(--muted); margin-top:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:500px;
+}
+.board-status-badge {
+  font-size:10px; font-weight:800; letter-spacing:.07em; text-transform:uppercase;
+  padding:3px 10px; border-radius:999px;
+}
+.status-active  { background:rgba(0,229,107,.12); color:#00e56b; border:1px solid rgba(0,229,107,.3); }
+.status-paused  { background:rgba(245,158,11,.12); color:#f59e0b; border:1px solid rgba(245,158,11,.3); }
+.status-archived{ background:rgba(107,114,128,.12); color:#6b7280; border:1px solid rgba(107,114,128,.3); }
+
+/* Progress bar */
+.board-progress-wrap { padding: 0 0 10px; display:flex; align-items:center; gap:10px; }
+.board-progress-bar {
+  flex:1; height:4px; background:rgba(255,255,255,0.07);
+  border-radius:999px; overflow:hidden;
+}
+.board-progress-fill {
+  height:100%; border-radius:999px;
+  background:linear-gradient(90deg,var(--accent),var(--green));
+  transition:width .4s ease;
+}
+.board-progress-label { font-size:11px; color:var(--muted); white-space:nowrap; }
+
+/* Tabs */
+.board-tabs { display:flex; gap:0; border-bottom:none; }
+.board-tab {
+  padding:8px 14px; font-size:12px; font-weight:600; color:var(--muted);
+  text-decoration:none; border-bottom:2px solid transparent;
+  transition:color .15s, border-color .15s; display:flex; align-items:center; gap:6px;
+}
+.board-tab:hover { color:var(--text); }
+.board-tab.active { color:var(--text); border-bottom-color:var(--accent); }
+
+/* Filter bar */
+.board-filter-bar {
+  flex-shrink:0; padding:8px 20px; display:flex; align-items:center; gap:8px;
+  border-bottom:1px solid rgba(255,255,255,0.05); overflow-x:auto; scrollbar-width:none;
+}
+.board-filter-bar::-webkit-scrollbar { display:none; }
+.filter-label { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
+.filter-chip {
+  font-size:11px; padding:3px 10px; border-radius:999px; cursor:pointer;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+  color:var(--muted); transition:all .15s; white-space:nowrap;
+}
+.filter-chip:hover { color:var(--text); border-color:rgba(255,255,255,0.25); }
+.filter-chip.active { background:rgba(66,133,244,.18); border-color:var(--accent); color:var(--accent); }
+
+/* Kanban area */
+.kanban-scroll {
+  flex:1; overflow-x:auto; overflow-y:hidden;
+  padding:20px;
+  display:flex; gap:14px; align-items:stretch;
+}
+.kanban-scroll::-webkit-scrollbar { height:6px; }
+.kanban-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:3px; }
+
+/* Columns */
+.kn-col {
+  flex:0 0 290px; display:flex; flex-direction:column;
+  border-radius:16px; background:var(--surface);
+  border:1px solid rgba(255,255,255,0.06);
+  max-height:100%; overflow:hidden;
+}
+.kn-col-head {
+  padding:12px 14px 10px; flex-shrink:0;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  display:flex; align-items:center; gap:8px;
+}
+.kn-col-accent { width:3px; height:16px; border-radius:2px; flex-shrink:0; }
+.col-offen .kn-col-accent   { background:var(--muted); }
+.col-in-arbeit .kn-col-accent{ background:var(--accent); }
+.col-review .kn-col-accent  { background:var(--purple,#a78bfa); }
+.col-erledigt .kn-col-accent{ background:var(--green); }
+.kn-col-name { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text); flex:1; }
+.kn-col-count {
+  font-size:11px; font-weight:700; color:var(--muted);
+  background:rgba(255,255,255,.06); padding:2px 8px; border-radius:999px;
+}
+.kn-add-btn {
+  background:none; border:none; cursor:pointer; color:var(--muted);
+  padding:2px 4px; border-radius:6px; transition:color .15s, background .15s;
+  display:flex; align-items:center;
+}
+.kn-add-btn:hover { color:var(--accent); background:rgba(66,133,244,.1); }
+
+.kn-collapse-btn {
+  background:none; border:none; cursor:pointer; color:var(--muted);
+  padding:2px 5px; border-radius:5px; font-size:13px; line-height:1;
+  transition:color .15s, background .15s;
+}
+.kn-collapse-btn:hover { color:var(--text); background:rgba(255,255,255,.08); }
+.kn-col.collapsed .kn-task-list { display:none; }
+.kn-col.collapsed .kn-quick-add { display:none !important; }
+.kn-col.collapsed { flex:0 0 180px; }
+
+.kn-task-list {
+  flex:1; overflow-y:auto; padding:10px;
+  display:flex; flex-direction:column; gap:8px; min-height:60px;
+}
+.kn-task-list::-webkit-scrollbar { width:3px; }
+.kn-task-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:2px; }
+.kn-task-list.drag-over { background:rgba(66,133,244,.05); border-radius:10px; }
+
+/* Task cards */
+.kn-card {
+  background: linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015));
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:12px; padding:12px 13px; cursor:pointer;z-index:10;position:relative;
+  transition:border-color .15s, box-shadow .15s, transform .15s;
+  position:relative;
+}
+.kn-card:hover {
+  border-color:rgba(66,133,244,.35);
+  box-shadow:0 4px 16px rgba(0,0,0,.3);
+  transform:translateY(-1px);
+}
+.kn-card.dragging { opacity:.35; cursor:grabbing; }
+.kn-card.hidden-by-filter { display:none; }
+
+.kn-card-labels { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; }
+.kn-label {
+  font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px;
+  background:rgba(66,133,244,.15); color:var(--accent);
+  border:1px solid rgba(66,133,244,.25);
+}
+.kn-label-hue-1 { background:rgba(167,139,250,.15); color:#a78bfa; border-color:rgba(167,139,250,.25); }
+.kn-label-hue-2 { background:rgba(0,229,107,.12); color:#00e56b; border-color:rgba(0,229,107,.25); }
+.kn-label-hue-3 { background:rgba(245,158,11,.12); color:#f59e0b; border-color:rgba(245,158,11,.25); }
+.kn-label-hue-4 { background:rgba(249,168,212,.12); color:#f9a8d4; border-color:rgba(249,168,212,.25); }
+
+.kn-card-title { font-size:13px; font-weight:500; line-height:1.45; color:var(--text); margin-bottom:8px; }
+.col-erledigt .kn-card-title { opacity:.55; text-decoration:line-through; }
+
+.kn-card-foot { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:4px; }
+.kn-due {
+  font-size:11px; padding:2px 7px; border-radius:6px; font-weight:600;
+  display:inline-flex; align-items:center; gap:4px;
+}
+.kn-due-ok     { background:rgba(255,255,255,.05); color:var(--muted); }
+.kn-due-soon   { background:rgba(245,158,11,.12); color:#f59e0b; }
+.kn-due-today  { background:rgba(245,158,11,.2);  color:#f59e0b; border:1px solid rgba(245,158,11,.4); }
+.kn-due-overdue{ background:rgba(239,68,68,.15);  color:#ef4444; border:1px solid rgba(239,68,68,.35); }
+.kn-ai-badge   { font-size:10px; font-weight:700; padding:2px 7px; border-radius:6px; background:rgba(167,139,250,.15); color:#a78bfa; margin-left:auto; }
+
+/* Empty column */
+.kn-empty {
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:24px 16px; color:var(--muted); font-size:12px; gap:6px;
+  border:1.5px dashed rgba(255,255,255,.07); border-radius:10px; margin:8px;
+  cursor:default;
+}
+
+/* Quick-add inline */
+.kn-quick-add { padding:8px 10px 10px; flex-shrink:0; }
+.kn-quick-input {
+  width:100%; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+  border-radius:8px; color:var(--text); padding:8px 10px;
+  font-size:13px; outline:none; box-sizing:border-box;
+}
+.kn-quick-input:focus { border-color:var(--accent); }
+.kn-quick-hint { font-size:10px; color:var(--muted); margin-top:4px; padding:0 2px; }
+
+/* ── Modals ─────────────────────────────────────────────────────────────── */
+.bmodal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(4px);
+  z-index:500; display:none; align-items:center; justify-content:center;
+}
+.bmodal-overlay.open { display:flex; }
+.bmodal {
+  background: linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02)),
+              var(--surface);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:20px; width:min(680px,95vw); max-height:85vh;
+  display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:0 24px 64px rgba(0,0,0,.6);
+}
+.bmodal-head {
+  padding:16px 20px 14px; border-bottom:1px solid rgba(255,255,255,.07);
+  display:flex; align-items:center; gap:12px; flex-shrink:0;
+}
+.bmodal-title { font-size:16px; font-weight:700; flex:1; }
+.bmodal-close {
+  background:rgba(255,255,255,.07); border:none; cursor:pointer; color:var(--muted);
+  width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  font-size:16px; transition:background .15s, color .15s;
+}
+.bmodal-close:hover { background:rgba(239,68,68,.15); color:#ef4444; }
+.bmodal-body { padding:20px; overflow-y:auto; flex:1; }
+.bmodal-body .form-group { margin-bottom:16px; }
+.bmodal-body .form-label { display:block; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+.bmodal-body .form-control {
+  width:100%; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  border-radius:10px; color:var(--text); padding:9px 12px; font-size:13px;
+  outline:none; box-sizing:border-box; transition:border-color .15s; font-family:inherit;
+}
+.bmodal-body .form-control:focus { border-color:var(--accent); }
+.bmodal-body textarea.form-control { resize:vertical; min-height:80px; }
+.bmodal-grid { display:grid; grid-template-columns:1fr 220px; gap:20px; }
+.bmodal-actions { padding:14px 20px; border-top:1px solid rgba(255,255,255,.07); display:flex; gap:8px; align-items:center; flex-shrink:0; }
+
+/* AI Panel */
+.ai-panel {
+  background:rgba(167,139,250,.07); border:1px solid rgba(167,139,250,.2);
+  border-radius:12px; padding:14px; margin-top:16px;
+}
+.ai-panel-title { font-size:12px; font-weight:700; color:#a78bfa; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set total = project.tasks | length %}
+{% set done  = project.tasks | selectattr('status','equalto','erledigt') | list | length %}
+{% set pct   = ((done / total * 100) | round(0) | int) if total > 0 else 0 %}
+{% set all_labels = [] %}
+{% for t in project.tasks %}{% for l in (t.labels or []) %}{% if l not in all_labels %}{% set _ = all_labels.append(l) %}{% endif %}{% endfor %}{% endfor %}
+
+<div class="board-shell">
+
+  <!-- Topbar -->
+  <div class="board-topbar">
+    <div class="board-topbar-main">
+      <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-sm btn-secondary" style="padding:5px 10px;border-radius:8px;flex-shrink:0;">
+        <i data-lucide="arrow-left" style="width:14px;height:14px;"></i>
+      </a>
+      <div class="board-project-info">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span class="board-project-name">{{ project.name }}</span>
+          <span class="board-status-badge status-{{ project.status }}">{{ project.status }}</span>
+          {% for tag in project.tags %}<span class="detail-tag" style="font-size:10px;padding:2px 8px;">{{ tag }}</span>{% endfor %}
+        </div>
+        {% if project.description %}<div class="board-project-desc">{{ project.description }}</div>{% endif %}
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="btn btn-primary btn-sm" onclick="openAddModal('offen')">
+          <i data-lucide="plus" style="width:13px;height:13px;"></i> Aufgabe
+        </button>
+        <a href="{{ url_for('board.project_edit', pid=project.id) }}" class="btn btn-secondary btn-sm">
+          <i data-lucide="settings" style="width:13px;height:13px;"></i>
+        </a>
+      </div>
+    </div>
+
+    {% if total > 0 %}
+    <div class="board-progress-wrap">
+      <div class="board-progress-bar"><div class="board-progress-fill" style="width:{{ pct }}%"></div></div>
+      <span class="board-progress-label">{{ done }}/{{ total }} erledigt · {{ pct }}%</span>
+    </div>
+    {% endif %}
+
+    <div class="board-tabs">
+      <a href="{{ url_for('board.board',            pid=project.id) }}" class="board-tab active">
+        <i data-lucide="layout-dashboard" style="width:13px;height:13px;"></i> Board
+      </a>
+      <a href="{{ url_for('files.files',            pid=project.id) }}" class="board-tab">
+        <i data-lucide="folder" style="width:13px;height:13px;"></i> Files
+      </a>
+      <a href="{{ url_for('board.review',           pid=project.id) }}" class="board-tab">
+        <i data-lucide="git-branch" style="width:13px;height:13px;"></i> Code Review
+      </a>
+      <a href="{{ url_for('board.project_activity', pid=project.id) }}" class="board-tab">
+        <i data-lucide="activity" style="width:13px;height:13px;"></i> Aktivität
+      </a>
+      <a href="{{ url_for('board.project_notes',    pid=project.id) }}" class="board-tab">
+        <i data-lucide="sticky-note" style="width:13px;height:13px;"></i> Notizen
+      </a>
+    </div>
+  </div>
+
+  <!-- Label-Filter -->
+  {% if all_labels %}
+  <div class="board-filter-bar">
+    <span class="filter-label">Filter</span>
+    <button class="filter-chip active" data-label="">Alle</button>
+    {% for l in all_labels %}
+    <button class="filter-chip" data-label="{{ l }}">{{ l }}</button>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Kanban -->
+  <div class="kanban-scroll" id="kanbanScroll">
+    {% for col in columns %}
+    {% set col_tasks = tasks_by_col[col] %}
+    <div class="kn-col col-{{ col }}" data-status="{{ col }}" ondragover="allowDrop(event)" ondrop="drop(event)">
+
+      <div class="kn-col-head">
+        <div class="kn-col-accent"></div>
+        <span class="kn-col-name">{{ col }}</span>
+        <span class="kn-col-count" id="count-{{ col }}">{{ col_tasks|length }}</span>
+        <button class="kn-collapse-btn" onclick="toggleCollapse('{{ col }}')" id="colbtn-{{ col }}" title="Einklappen/Ausklappen">⌃</button>
+        <button class="kn-add-btn" onclick="focusQuickAdd('{{ col }}')" title="Aufgabe hinzufügen">
+          <i data-lucide="plus" style="width:14px;height:14px;"></i>
+        </button>
+      </div>
+
+      <div class="kn-task-list" id="list-{{ col }}">
+        {% if not col_tasks %}
+        <div class="kn-empty" id="empty-{{ col }}">
+          <i data-lucide="inbox" style="width:22px;height:22px;opacity:.3;"></i>
+          <span>Keine Aufgaben</span>
+        </div>
+        {% endif %}
+        {% for task in col_tasks %}
+        {% set label_hues = ['','hue-1','hue-2','hue-3','hue-4'] %}
+        <div class="kn-card" id="task-{{ task.id }}" draggable="true"
+             ondragstart="drag(event)" onclick="openDetail('{{ task.id }}')"
+             data-labels="{{ (task.labels or []) | join(',') | lower }}">
+          {% if task.labels %}
+          <div class="kn-card-labels">
+            {% for label in task.labels %}
+            <span class="kn-label kn-label-{{ label_hues[loop.index0 % 5] }}">{{ label }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="kn-card-title">{{ task.title }}</div>
+          <div class="kn-card-foot">
+            {% if task.due_date %}
+            <span class="kn-due" id="due-{{ task.id }}" data-due="{{ task.due_date }}">
+              <i data-lucide="calendar" style="width:10px;height:10px;"></i>
+              {{ task.due_date }}
+            </span>
+            {% endif %}
+            {% if task.ai_patch and task.status != 'erledigt' %}
+            <span class="kn-ai-badge">🤖 AI</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Quick-Add -->
+      <div class="kn-quick-add" id="qa-{{ col }}" style="display:none;">
+        <input class="kn-quick-input" type="text" placeholder="Titel eingeben…"
+               id="qa-input-{{ col }}"
+               onkeydown="handleQuickAdd(event,'{{ col }}')"
+               onblur="closeQuickAdd('{{ col }}')">
+        <div class="kn-quick-hint">Enter speichern · Esc abbrechen</div>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<!-- ── Modal: Aufgabe anlegen ── -->
+<div class="bmodal-overlay" id="addModal">
+  <div class="bmodal" style="max-width:440px;">
+    <div class="bmodal-head">
+      <span class="bmodal-title">Neue Aufgabe</span>
+      <button class="bmodal-close" onclick="closeAddModal()">✕</button>
+    </div>
+    <div class="bmodal-body">
+      <div class="form-group"><label class="form-label">Titel</label><input class="form-control" id="addTitle" autofocus placeholder="Titel der Aufgabe…"></div>
+      <div class="form-group"><label class="form-label">Beschreibung</label><textarea class="form-control" id="addDesc" rows="3" placeholder="Details (optional)…"></textarea></div>
+      <div class="form-group"><label class="form-label">Labels</label><input class="form-control" id="addLabels" placeholder="bug, feature, …"></div>
+      <div class="form-group"><label class="form-label">Fällig am</label><input class="form-control" type="date" id="addDue"></div>
+      <input type="hidden" id="addStatus">
+    </div>
+    <div class="bmodal-actions">
+      <button class="btn btn-primary" onclick="submitAdd()">Anlegen</button>
+      <button class="btn btn-secondary" onclick="closeAddModal()">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Aufgabe bearbeiten ── -->
+<div class="bmodal-overlay" id="detailModal">
+  <div class="bmodal">
+    <div class="bmodal-head">
+      <span class="bmodal-title" id="detTitle">Aufgabe</span>
+      <button class="bmodal-close" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="bmodal-body">
+      <div class="bmodal-grid">
+        <div>
+          <div class="form-group"><label class="form-label">Titel</label><input class="form-control" id="detInputTitle"></div>
+          <div class="form-group"><label class="form-label">Beschreibung</label><textarea class="form-control" id="detInputDesc" rows="7"></textarea></div>
+          <div id="aiSection" style="display:none;">
+            <div class="ai-panel">
+              <div class="ai-panel-title"><i data-lucide="cpu" style="width:13px;height:13px;"></i> KI Code Generator</div>
+              <p id="aiText" style="font-size:12px;color:var(--muted);margin:0 0 10px;">Die KI kann für diese Aufgabe Code-Vorschläge generieren.</p>
+              <div id="aiActions" style="display:flex;gap:8px;">
+                <button class="btn btn-primary btn-sm" id="btnAiGen" onclick="startAiGen()">Patch generieren</button>
+                <a id="btnAiReview" href="#" class="btn btn-secondary btn-sm" style="display:none;">Patch prüfen</a>
+              </div>
+              <div id="aiLoading" style="display:none;align-items:center;gap:8px;font-size:12px;color:var(--muted);">
+                <span class="spinner"></span><span id="aiStatus">Übermittle an KI…</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="form-group"><label class="form-label">Status</label>
+            <select class="form-control" id="detInputStatus">
+              {% for col in columns %}<option value="{{ col }}">{{ col }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Labels</label><input class="form-control" id="detInputLabels" placeholder="bug, feature, …"></div>
+          <div class="form-group"><label class="form-label">Fällig am</label><input class="form-control" type="date" id="detInputDate"></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:12px;">Erstellt: <span id="detCreated"></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bmodal-actions">
+      <button class="btn btn-primary" onclick="saveTask()">Speichern</button>
+      <button class="btn btn-secondary" onclick="closeDetail()">Abbrechen</button>
+      <button class="btn btn-danger btn-sm" style="margin-left:auto;" onclick="deleteTask()">
+        <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Löschen
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PID = "{{ project.id }}";
+let currentTaskId = null;
+const allTasks = {{ project.tasks | tojson }};
+
+// ── Due-Date Coloring ────────────────────────────────────────────────────
+(function() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  document.querySelectorAll('[data-due]').forEach(el => {
+    const d = new Date(el.dataset.due); d.setHours(0,0,0,0);
+    const diff = Math.round((d - today) / 86400000);
+    el.classList.remove('kn-due-ok','kn-due-soon','kn-due-today','kn-due-overdue');
+    if (diff < 0)       el.classList.add('kn-due-overdue');
+    else if (diff === 0) el.classList.add('kn-due-today');
+    else if (diff <= 3)  el.classList.add('kn-due-soon');
+    else                 el.classList.add('kn-due-ok');
+  });
+})();
+
+// ── Label-Filter ─────────────────────────────────────────────────────────
+let activeLabel = '';
+document.querySelectorAll('.filter-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeLabel = btn.dataset.label.toLowerCase();
+    document.querySelectorAll('.kn-card').forEach(card => {
+      const labels = card.dataset.labels || '';
+      const show = !activeLabel || labels.split(',').includes(activeLabel);
+      card.classList.toggle('hidden-by-filter', !show);
+    });
+    updateCounts();
+  });
+});
+
+function updateCounts() {
+  {{ columns | tojson }}.forEach(col => {
+    const list = document.getElementById('list-' + col);
+    const visible = list ? list.querySelectorAll('.kn-card:not(.hidden-by-filter)').length : 0;
+    const cnt = document.getElementById('count-' + col);
+    if (cnt) cnt.textContent = visible;
+    const empty = document.getElementById('empty-' + col);
+    if (empty) empty.style.display = visible === 0 ? 'flex' : 'none';
+  });
+}
+
+// ── Quick-Add ────────────────────────────────────────────────────────────
+function focusQuickAdd(col) {
+  const wrap = document.getElementById('qa-' + col);
+  const inp  = document.getElementById('qa-input-' + col);
+  if (!wrap || !inp) return;
+  wrap.style.display = 'block';
+  inp.focus();
+}
+function closeQuickAdd(col) {
+  setTimeout(() => {
+    const wrap = document.getElementById('qa-' + col);
+    if (wrap) wrap.style.display = 'none';
+  }, 150);
+}
+async function handleQuickAdd(e, col) {
+  if (e.key === 'Escape') { closeQuickAdd(col); return; }
+  if (e.key !== 'Enter') return;
+  const inp = document.getElementById('qa-input-' + col);
+  const title = inp.value.trim();
+  if (!title) return;
+  inp.value = '';
+  const res = await fetch(`/project/{{ project.id }}/task/add`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({title, status: col})
+  });
+  if (res.ok) htmx.ajax('GET', location.href, {target: '.main', select: '.main', swap: 'outerHTML'});
+}
+
+// ── Add Modal ────────────────────────────────────────────────────────────
+function openAddModal(status) {
+  document.getElementById('addStatus').value = status;
+  document.getElementById('addModal').classList.add('open');
+  setTimeout(() => document.getElementById('addTitle').focus(), 50);
+}
+function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
+async function submitAdd() {
+  const title = document.getElementById('addTitle').value.trim();
+  if (!title) return;
+  const res = await fetch(`/project/{{ project.id }}/task/add`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('addDesc').value,
+      labels: document.getElementById('addLabels').value,
+      due_date: document.getElementById('addDue').value,
+      status: document.getElementById('addStatus').value
+    })
+  });
+  if (res.ok) {
+    closeAddModal();
+    htmx.ajax('GET', location.href, {target: '.main', select: '.main', swap: 'outerHTML'});
+  }
+}
+
+// ── Detail Modal ─────────────────────────────────────────────────────────
+function openDetail(tid) {
+  const t = allTasks.find(x => x.id === tid);
+  if (!t) return;
+  currentTaskId = tid;
+  document.getElementById('detTitle').textContent = t.title;
+  document.getElementById('detInputTitle').value = t.title;
+  document.getElementById('detInputDesc').value = t.description || '';
+  document.getElementById('detInputStatus').value = t.status;
+  document.getElementById('detInputLabels').value = (t.labels || []).join(', ');
+  document.getElementById('detInputDate').value = t.due_date || '';
+  document.getElementById('detCreated').textContent = t.created || '–';
+  const aiSec = document.getElementById('aiSection');
+  const btnRev = document.getElementById('btnAiReview');
+  const btnGen = document.getElementById('btnAiGen');
+  aiSec.style.display = t.status !== 'erledigt' ? 'block' : 'none';
+  if (t.ai_patch) {
+    btnRev.style.display = 'inline-flex';
+    btnRev.href = `/project/{{ project.id }}/task/${tid}/ai-review`;
+    btnGen.textContent = 'Neu generieren';
+  } else {
+    btnRev.style.display = 'none';
+    btnGen.textContent = 'Patch generieren';
+  }
+  document.getElementById('detailModal').classList.add('open');
+  if (window.lucide) lucide.createIcons();
+}
+function closeDetail() { document.getElementById('detailModal').classList.remove('open'); }
+async function saveTask() {
+  const res = await fetch(`/project/{{ project.id }}/task/${currentTaskId}/edit`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title: document.getElementById('detInputTitle').value,
+      description: document.getElementById('detInputDesc').value,
+      status: document.getElementById('detInputStatus').value,
+      labels: document.getElementById('detInputLabels').value,
+      due_date: document.getElementById('detInputDate').value
+    })
+  });
+  if (res.ok) {
+    closeDetail();
+    htmx.ajax('GET', location.href, {target: '.main', select: '.main', swap: 'outerHTML'});
+  }
+}
+async function deleteTask() {
+  if (!confirm('Aufgabe löschen?')) return;
+  const res = await fetch(`/project/{{ project.id }}/task/${currentTaskId}/delete`, {method:'POST'});
+  if (res.ok) {
+    closeDetail();
+    htmx.ajax('GET', location.href, {target: '.main', select: '.main', swap: 'outerHTML'});
+  }
+}
+
+// ── Drag & Drop ──────────────────────────────────────────────────────────
+function allowDrop(e) { e.preventDefault(); e.currentTarget.querySelector('.kn-task-list')?.classList.add('drag-over'); }
+function drag(e) {
+  e.dataTransfer.setData('text', e.currentTarget.id);
+  e.currentTarget.classList.add('dragging');
+}
+document.querySelectorAll('.kn-col').forEach(col => {
+  col.addEventListener('dragleave', () => col.querySelector('.kn-task-list')?.classList.remove('drag-over'));
+});
+async function drop(e) {
+  e.preventDefault();
+  const col = e.currentTarget;
+  col.querySelector('.kn-task-list')?.classList.remove('drag-over');
+  const id = e.dataTransfer.getData('text');
+  document.getElementById(id)?.classList.remove('dragging');
+  const tid = id.replace('task-', '');
+  const status = col.dataset.status;
+  const res = await fetch(`/project/{{ project.id }}/task/${tid}/move`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status})
+  });
+  const d = await res.json();
+  if (d.ok) htmx.ajax('GET', location.href, {target: '.main', select: '.main', swap: 'outerHTML'});
+  else if (d.error) alert(d.error);
+}
+
+// ── AI Gen ───────────────────────────────────────────────────────────────
+function startAiGen() {
+  document.getElementById('aiActions').style.display = 'none';
+  document.getElementById('aiLoading').style.display = 'flex';
+  const status = document.getElementById('aiStatus');
+  const es = new EventSource(`/project/{{ project.id }}/task/${currentTaskId}/ai-generate`);
+  es.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.status) status.textContent = d.status;
+    if (d.done) { es.close(); location.href = d.redirect; }
+    if (d.error) { es.close(); alert(d.error); location.reload(); }
+  };
+  es.onerror = () => { es.close(); alert('Verbindungsfehler'); location.reload(); };
+}
+
+// ── Collapse ─────────────────────────────────────────────────────────────
+function toggleCollapse(col) {
+  const el  = document.querySelector('.kn-col[data-status="' + col + '"]');
+  const btn = document.getElementById('colbtn-' + col);
+  if (!el) return;
+  const collapsed = el.classList.toggle('collapsed');
+  if (btn) btn.style.transform = collapsed ? 'rotate(180deg)' : '';
+  try { localStorage.setItem('col-collapsed-' + col, collapsed ? '1' : '0'); } catch(e) {}
+}
+(function() {
+  ['offen','in-arbeit','review','erledigt'].forEach(col => {
+    const def = col === 'erledigt' ? '1' : '0';
+    let val = def;
+    try { val = localStorage.getItem('col-collapsed-' + col) ?? def; } catch(e) {}
+    if (val === '1') {
+      const el  = document.querySelector('.kn-col[data-status="' + col + '"]');
+      const btn = document.getElementById('colbtn-' + col);
+      if (el) { el.classList.add('collapsed'); if (btn) btn.style.transform = 'rotate(180deg)'; }
+    }
+  });
+})();
+
+// ── Keyboard ─────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeAddModal(); closeDetail(); }
+  if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+    openAddModal('offen');
+  }
+});
+document.getElementById('addModal').addEventListener('click', e => { if (e.target.id==='addModal') closeAddModal(); });
+document.getElementById('detailModal').addEventListener('click', e => { if (e.target.id==='detailModal') closeDetail(); });
+
+if (window.lucide) lucide.createIcons();
+</script>
+{% endblock %}

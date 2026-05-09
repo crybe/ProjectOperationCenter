@@ -1,0 +1,50 @@
+<div class="topbar topbar-project">
+  <div class="project-topbar-main">
+    <div class="page-heading project-heading">
+      <div class="eyebrow">Projektbereich</div>
+      <span class="topbar-title">{{ project.name }}</span>
+      <span class="page-subline">
+        {% if active_view == 'board' %}
+        Aufgabenfluss, Status und operative Vorschläge zentral steuern.
+        {% elif active_view == 'files' %}
+        Dateien lesen, bearbeiten und Änderungen schnell zurückspielen.
+        {% elif active_view == 'review' %}
+        Logs, Analyse und Changelog für saubere Releases bündeln.
+        {% elif active_view == 'activity' %}
+        Laufende Bot-Ausgaben und frische Dateiänderungen im Blick behalten.
+        {% elif active_view == 'notes' %}
+        Wissen, Quirks und Deployment-Hinweise dauerhaft festhalten.
+        {% else %}
+        Board, Code, Review und Verlauf in einem konsistenten Projektfenster.
+        {% endif %}
+      </span>
+    </div>
+
+    <div class="topbar-actions">
+      <a href="{{ url_for('project_edit', pid=project.id) }}" class="btn btn-secondary btn-sm">Projekt bearbeiten</a>
+    </div>
+  </div>
+
+  <nav class="project-tabbar" aria-label="Projekt-Navigation">
+    <a href="{{ url_for('board', pid=project.id) }}" class="project-tab {% if active_view == 'board' %}active{% endif %}">
+      <span class="project-tab-icon">⊞</span>
+      <span>Board</span>
+    </a>
+    <a href="{{ url_for('files', pid=project.id) }}" class="project-tab {% if active_view == 'files' %}active{% endif %}">
+      <span class="project-tab-icon">✎</span>
+      <span>Files</span>
+    </a>
+    <a href="{{ url_for('review', pid=project.id) }}" class="project-tab {% if active_view == 'review' %}active{% endif %}">
+      <span class="project-tab-icon">⎇</span>
+      <span>Review</span>
+    </a>
+    <a href="{{ url_for('project_activity', pid=project.id) }}" class="project-tab {% if active_view == 'activity' %}active{% endif %}">
+      <span class="project-tab-icon">◔</span>
+      <span>Activity</span>
+    </a>
+    <a href="{{ url_for('project_notes', pid=project.id) }}" class="project-tab {% if active_view == 'notes' %}active{% endif %}">
+      <span class="project-tab-icon">▤</span>
+      <span>Notes</span>
+    </a>
+  </nav>
+</div>

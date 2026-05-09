@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block title %}VPanel – Unified Control{% endblock %}
+
+{% block head %}
+<style>
+  :root {
+    --vp-accent: #00ffcc;
+    --vp-bg: #0b0e14;
+    --vp-card: rgba(23, 28, 41, 0.6);
+    --vp-border: rgba(255, 255, 255, 0.08);
+    --vp-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .vpanel-wrapper {
+    padding: 30px;
+    background: radial-gradient(circle at 50% 0%, rgba(0, 255, 204, 0.05) 0%, transparent 70%);
+    min-height: 100%;
+    animation: fadeIn 0.6s ease-out;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .vpanel-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 24px;
+  }
+
+  .section-card {
+    background: var(--vp-card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--vp-border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--vp-shadow);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .section-card:hover { border-color: rgba(0, 255, 204, 0.2); }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--vp-accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Metrics Styling */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+  }
+  .metric-item {
+    background: rgba(255,255,255,0.03);
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.05);
+    position: relative;
+    overflow: hidden;
+  }
+  .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .metric-value { font-size: 22px; font-weight: 700; color: #fff; }
+  .metric-bar {
+    position: absolute;
+    bottom: 0; left: 0; height: 3px;
+    background: var(--vp-accent);
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Table Styling */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .data-table th {
+    text-align: left;
+    padding: 12px 8px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--vp-border);
+    font-weight: 600;
+  }
+  .data-table td {
+    padding: 12px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.02);
+  }
+  .data-table tr:hover td { background: rgba(0, 255, 204, 0.03); }
+
+  .status-tag {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .status-up { background: rgba(63, 185, 80, 0.15); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.2); }
+
+  /* Terminal Styling */
+  .terminal-box {
+    background: #080c12;
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #a5d6ff;
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid #1a2333;
+  }
+
+  .quick-cmd-input {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--vp-border);
+    border-radius: 8px;
+    color: #fff;
+    padding: 10px 16px;
+    font-family: monospace;
+    flex: 1;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .quick-cmd-input:focus { border-color: var(--vp-accent); }
+
+  /* Grid Positions */
+  .grid-metrics { grid-column: span 4; }
+  .grid-docker { grid-column: span 8; }
+  .grid-procs { grid-column: span 6; }
+  .grid-net { grid-column: span 6; }
+  .grid-term { grid-column: span 12; }
+
+  @media (max-width: 1100px) {
+    .grid-metrics, .grid-docker, .grid-procs, .grid-net { grid-column: span 12; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content page-scroll">
+  <div class="vpanel-wrapper">
+    <div class="vpanel-container">
+      
+      <!-- 1. System Metrics -->
+      <div class="section-card grid-metrics">
+        <div class="card-header">
+          <span class="card-title"><i data-lucide="cpu"></i> System Resources</span>
+          <button class="btn-icon" onclick="loadMetrics()"><i data-lucide="rotate-cw"></i></button>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-item">
+            <div class="metric-label">CPU USAGE</div>
+            <div class="metric-value" id="cpuVal">--%</div>
+            <div class="metric-bar" id="cpuBar" style="width: 0%"></div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-label">CPU TEMP</div>
+            <div class="metric-value" id="cpuTemp">--°C</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-label">MEMORY</div>
+            <div class="metric-value" id="ramVal">--%</div>
+            <div class="metric-bar" id="ramBar" style="width: 0%"></div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-label">LOAD (1M)</div>
+            <div class="metric-value" id="loadVal">--</div>
+          </div>
+        </div>
+        <div style="margin-top: 24px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--vp-border); padding-top: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span>Uptime</span>
+            <span id="uptimeVal" style="color: #fff;">--</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>Disk Usage (Root)</span>
+            <span id="diskInfo" style="color: #fff;">-- / --</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Docker Containers -->
+      <div class="section-card grid-docker">
+        <div class="card-header">
+          <span class="card-title"><i data-lucide="box"></i> Docker Engine</span>
+          <div style="display: flex; gap: 8px;">
+             <button class="btn btn-secondary btn-sm" onclick="loadDocker()">Refresh</button>
+          </div>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="dockerTable">
+            <thead>
+              <tr>
+                <th>Container</th>
+                <th>CPU %</th>
+                <th>Memory</th>
+                <th>Net I/O</th>
+                <th>Status</th>
+                <th style="text-align: right;">Aktion</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="6" style="text-align:center; padding: 40px; color: var(--muted);">Lade Container...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. Processes -->
+      <div class="section-card grid-procs">
+        <div class="card-header">
+          <span class="card-title"><i data-lucide="list"></i> Top Processes</span>
+          <button class="btn-icon" onclick="loadProcesses()"><i data-lucide="rotate-cw"></i></button>
+        </div>
+        <div class="terminal-box" id="processOutput">Lade Prozesse...</div>
+      </div>
+
+      <!-- 4. Network -->
+      <div class="section-card grid-net">
+        <div class="card-header">
+          <span class="card-title"><i data-lucide="globe"></i> Network Ports</span>
+          <button class="btn-icon" onclick="loadNetwork()"><i data-lucide="rotate-cw"></i></button>
+        </div>
+        <div class="terminal-box" id="networkOutput">Lade Ports...</div>
+      </div>
+
+      <!-- 5. Terminal -->
+      <div class="section-card grid-term">
+        <div class="card-header">
+          <span class="card-title"><i data-lucide="terminal"></i> Host Terminal</span>
+        </div>
+        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+          <input type="text" id="termCmd" class="quick-cmd-input" placeholder="Befehl eingeben..." onkeydown="if(event.key==='Enter') runQuickCmd()">
+          <button class="btn btn-primary" onclick="runQuickCmd()">Execute</button>
+        </div>
+        <div class="terminal-box" id="termOutput" style="height: 180px; color: #fff;">Bereit.</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+async function refreshAll() {
+  loadMetrics();
+  loadDocker();
+  loadProcesses();
+  loadNetwork();
+}
+
+async function loadMetrics() {
+  try {
+    const res = await fetch('/api/vps/metrics');
+    const d = await res.json();
+    if (d.ok) {
+      document.getElementById('cpuVal').textContent = d.cpu.usage.toFixed(1) + '%';
+      document.getElementById('cpuBar').style.width = d.cpu.usage + '%';
+      document.getElementById('cpuTemp').textContent = d.cpu.temp + '°C';
+      document.getElementById('ramVal').textContent = d.ram.pct + '%';
+      document.getElementById('ramBar').style.width = d.ram.pct + '%';
+      document.getElementById('uptimeVal').textContent = d.uptime || '--';
+      document.getElementById('loadVal').textContent = d.load[0];
+      document.getElementById('diskInfo').textContent = `${d.disk.used} / ${d.disk.total} (${d.disk.pct}%)`;
+    }
+  } catch (e) { console.error(e); }
+}
+
+async function loadDocker() {
+  try {
+    const res = await fetch('/api/vps/docker/stats');
+    const stats = await res.json();
+    const tbody = document.querySelector('#dockerTable tbody');
+    if (!stats.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 40px;">Keine aktiven Container.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = stats.map(s => `
+      <tr>
+        <td><strong style="color: #fff;">${s.container}</strong></td>
+        <td>${s.cpu}</td>
+        <td>${s.mem}</td>
+        <td>${s.net}</td>
+        <td><span class="status-tag status-up">Active</span></td>
+        <td style="text-align: right;">
+          <button class="btn btn-secondary btn-sm" onclick="containerAction('${s.container}', 'restart')">Restart</button>
+        </td>
+      </tr>
+    `).join('');
+    lucide.createIcons();
+  } catch (e) { console.error(e); }
+}
+
+async function loadProcesses() {
+  try {
+    const res = await fetch('/api/vps/processes');
+    const d = await res.json();
+    document.getElementById('processOutput').textContent = d.stdout || d.stderr || 'Keine Daten.';
+  } catch (e) { }
+}
+
+async function loadNetwork() {
+  try {
+    const res = await fetch('/api/vps/network');
+    const d = await res.json();
+    document.getElementById('networkOutput').textContent = d.stdout || d.stderr || 'Keine Daten.';
+  } catch (e) { }
+}
+
+async function runQuickCmd() {
+  const cmd = document.getElementById('termCmd').value.trim();
+  if (!cmd) return;
+  const out = document.getElementById('termOutput');
+  out.textContent += '\n$ ' + cmd + '\nLade...';
+  try {
+    const res = await fetch('/api/shortcuts/run_raw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd })
+    });
+    const d = await res.json();
+    out.textContent += '\n' + (d.stdout || d.stderr || '(Keine Ausgabe)');
+    out.scrollTop = out.scrollHeight;
+    document.getElementById('termCmd').value = '';
+  } catch (e) { out.textContent += '\nFehler!'; }
+}
+
+async function containerAction(name, action) {
+  if (!confirm(`${name} ${action}?`)) return;
+  const res = await fetch(`/api/container/${name}/${action}`, { method: 'POST' });
+  const d = await res.json();
+  if(d.ok) loadDocker(); else alert(d.error);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  refreshAll();
+  setInterval(refreshAll, 15000);
+});
+</script>
+{% endblock %}

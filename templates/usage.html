@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Token-Verbrauch – DevHub{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div>
+    <div class="eyebrow">KI-Nutzung</div>
+    <span class="topbar-title">Token-Verbrauch</span>
+  </div>
+</div>
+
+<div class="content page-scroll">
+<div class="dashboard-wrap" style="max-width:860px;">
+
+  <!-- Heute -->
+  <section class="surface-panel" style="margin-bottom:24px;padding:24px;">
+    <div class="section-title">Heute</div>
+    <div class="dash-grid" style="margin-top:12px;">
+
+      <article class="stat-card stat-accent-blue">
+        <div class="stat-label">Groq (llama-3.3-70b)</div>
+        <div class="stat-value" id="groqToday">–</div>
+        <div class="stat-meta" id="groqMeta">wird geladen…</div>
+        <div class="stat-progress" style="margin-top:10px;">
+          <span id="groqBar" style="width:0%;background:var(--accent)"></span>
+        </div>
+      </article>
+
+      <article class="stat-card stat-accent-teal">
+        <div class="stat-label">Ollama (lokal · kostenlos)</div>
+        <div class="stat-value" id="ollamaToday">–</div>
+        <div class="stat-meta" id="ollamaMeta">wird geladen…</div>
+      </article>
+
+      <article class="stat-card">
+        <div class="stat-label">Groq Free-Tier Limit</div>
+        <div class="stat-value">500 k</div>
+        <div class="stat-meta">Tokens / Tag</div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- Verlauf -->
+  <section class="surface-panel" style="padding:24px;">
+    <div class="section-title">14-Tage Verlauf</div>
+    <div id="histChart" style="margin-top:16px;display:flex;align-items:flex-end;gap:6px;height:140px;"></div>
+    <div id="histLegend" style="margin-top:12px;display:flex;gap:16px;font-size:12px;color:var(--muted);">
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--accent);margin-right:4px;"></span>Groq</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green);margin-right:4px;"></span>Ollama</span>
+    </div>
+
+    <table class="project-list-table" style="margin-top:20px;">
+      <thead><tr>
+        <th>Datum</th>
+        <th>Groq Input</th><th>Groq Output</th><th>Groq Requests</th>
+        <th>Ollama ~Tokens</th><th>Ollama Requests</th>
+      </tr></thead>
+      <tbody id="histTable"></tbody>
+    </table>
+  </section>
+
+</div>
+</div>
+
+<script>
+function fmt(n) {
+  if (n >= 1000) return (n/1000).toFixed(1) + 'k';
+  return String(n);
+}
+
+fetch('{{ url_for("ai.api_token_usage") }}').then(r=>r.json()).then(d=>{
+  // Heute
+  document.getElementById('groqToday').textContent = fmt(d.groq_today) + ' Tokens';
+  document.getElementById('groqMeta').textContent  = d.groq_pct + '% des Tageslimits (500k)';
+  document.getElementById('groqBar').style.width   = Math.min(d.groq_pct, 100) + '%';
+  if (d.groq_pct > 80) document.getElementById('groqBar').style.background = 'var(--red)';
+  else if (d.groq_pct > 50) document.getElementById('groqBar').style.background = 'var(--amber)';
+
+  const todayOllama = d.history.find(h=>h.date===d.today);
+  const oll = todayOllama ? todayOllama.ollama : {input:0,output:0,requests:0};
+  document.getElementById('ollamaToday').textContent = fmt(oll.input + oll.output) + ' ~Tokens';
+  document.getElementById('ollamaMeta').textContent  = oll.requests + ' Anfragen heute';
+
+  // Verlauf-Balken
+  const hist = d.history;
+  if (hist.length) {
+    const maxVal = Math.max(...hist.map(h => (h.groq.input+h.groq.output) + (h.ollama.input+h.ollama.output)), 1);
+    const chart = document.getElementById('histChart');
+    chart.innerHTML = hist.map(h => {
+      const groqT = h.groq.input + h.groq.output;
+      const ollT  = h.ollama.input + h.ollama.output;
+      const total = groqT + ollT;
+      const hPx   = Math.round(total / maxVal * 120);
+      const gPx   = total ? Math.round(groqT / total * hPx) : 0;
+      const oPx   = hPx - gPx;
+      const label = h.date.slice(5); // MM-DD
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;">
+        <div style="display:flex;flex-direction:column;justify-content:flex-end;height:120px;width:100%;gap:1px;">
+          <div style="height:${gPx}px;background:var(--accent);border-radius:3px 3px 0 0;" title="Groq: ${fmt(groqT)}"></div>
+          <div style="height:${oPx}px;background:var(--green);border-radius:${gPx?'0':'3px 3px'} 0 0;" title="Ollama: ${fmt(ollT)}"></div>
+        </div>
+        <span style="font-size:10px;color:var(--muted);writing-mode:vertical-lr;transform:rotate(180deg);margin-top:4px;">${label}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Tabelle
+  const tbody = document.getElementById('histTable');
+  tbody.innerHTML = [...hist].reverse().map(h => `<tr>
+    <td>${h.date}</td>
+    <td>${fmt(h.groq.input)}</td>
+    <td>${fmt(h.groq.output)}</td>
+    <td>${h.groq.requests}</td>
+    <td>${fmt(h.ollama.input + h.ollama.output)}</td>
+    <td>${h.ollama.requests}</td>
+  </tr>`).join('') || '<tr><td colspan="6" style="color:var(--muted);text-align:center;">Noch keine Daten</td></tr>';
+
+}).catch(()=>{
+  document.getElementById('groqToday').textContent = 'Fehler';
+});
+</script>
+{% endblock %}

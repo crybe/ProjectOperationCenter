@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+{% block title %}Notizen – {{ project.name }}{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  /* === Layout === */
+  .notes-wrap { max-width: 900px; margin: 0 auto; padding: 20px 0; display: flex; flex-direction: column; gap: 14px; }
+
+  /* === Neue-Notiz-Button === */
+  .new-note-trigger {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 12px 16px;
+    background: none; border: 1px dashed var(--border); border-radius: 10px;
+    color: var(--text-muted); font-size: 13px; cursor: pointer;
+    transition: border-color 0.2s, color 0.2s; text-align: left;
+  }
+  .new-note-trigger:hover { border-color: var(--accent); color: var(--accent); }
+  .new-note-trigger .plus { font-size: 18px; line-height: 1; }
+
+  /* === Editor-Panel === */
+  .editor-panel { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+  .editor-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; border-bottom: 1px solid var(--border);
+    font-family: monospace; font-size: 11px; letter-spacing: 0.06em; color: var(--text-muted);
+  }
+  .editor-status { font-size: 11px; }
+  .editor-status.saving { color: var(--amber, #f59e0b); }
+  .editor-status.saved  { color: var(--green); }
+  .editor-status.error  { color: var(--red); }
+  .editor-body { display: grid; grid-template-columns: 1fr 1fr; min-height: 180px; }
+  .editor-input {
+    resize: none; border: none; border-right: 1px solid var(--border);
+    background: transparent; color: var(--text);
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    padding: 14px; line-height: 1.7; outline: none; width: 100%;
+  }
+  .editor-preview { padding: 14px; font-size: 13px; line-height: 1.7; overflow-y: auto; color: var(--text); }
+  .editor-preview-empty { color: var(--text-muted); font-size: 12px; }
+  .editor-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+    padding: 10px 14px; border-top: 1px solid var(--border);
+  }
+
+  /* === Markdown-Stile === */
+  .md p          { margin: 0 0 8px 0; }
+  .md p:last-child { margin-bottom: 0; }
+  .md code       { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+  .md pre        { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; overflow-x: auto; margin: 8px 0; }
+  .md pre code   { background: none; padding: 0; }
+  .md ul, .md ol { padding-left: 20px; margin: 6px 0; }
+  .md h1, .md h2, .md h3 { margin: 10px 0 4px; font-size: 14px; color: var(--accent); }
+  .md a          { color: var(--accent); }
+  .md input[type=checkbox] { cursor: pointer; margin-right: 6px; accent-color: var(--accent); }
+
+  /* === Notiz-Karte === */
+  .note-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  .note-view  { padding: 16px; }
+  .note-inline-editor { display: none; border-top: 1px solid var(--border); }
+  .note-inline-editor .editor-toolbar { border-radius: 0; }
+  .note-inline-editor .editor-input   { min-height: 120px; }
+  .note-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.12);
+  }
+  .note-meta  { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text-muted); font-family: monospace; }
+  .note-author { color: var(--accent); font-weight: 600; }
+  .note-actions { display: flex; gap: 6px; }
+  .note-btn        { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); font-size: 11px; padding: 3px 10px; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+  .note-btn:hover  { color: var(--text); border-color: var(--accent); }
+  .note-btn.danger { color: var(--red); border-color: rgba(239,68,68,0.3); }
+  .note-btn.danger:hover { border-color: var(--red); background: rgba(239,68,68,0.08); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <span class="topbar-title">{{ project.name }}</span>
+  <a href="{{ url_for('board.board',            pid=project.id) }}" class="tab">⊞ Board</a>
+  <a href="{{ url_for('files.files',            pid=project.id) }}" class="tab">📁 Files</a>
+  <a href="{{ url_for('board.review',           pid=project.id) }}" class="tab">⎇ Code Review</a>
+  <a href="{{ url_for('board.project_activity', pid=project.id) }}" class="tab">● Aktivität</a>
+  <a href="{{ url_for('board.project_notes',    pid=project.id) }}" class="tab active">📝 Notizen</a>
+  <div class="topbar-actions">
+    <a href="{{ url_for('board.project_edit', pid=project.id) }}" class="btn btn-secondary btn-sm">Bearbeiten</a>
+  </div>
+</div>
+
+<div class="content page-scroll">
+  <div class="notes-wrap">
+
+    <!-- Neue Notiz -->
+    <button class="new-note-trigger" id="newNoteTrigger" type="button">
+      <span class="plus">+</span> Neue Notiz…
+    </button>
+
+    <div id="newNotePanel" style="display:none;">
+      <div class="editor-panel">
+        <div class="editor-toolbar">
+          <span>NEUE NOTIZ · MARKDOWN</span>
+          <span class="editor-status" id="newNoteStatus"></span>
+        </div>
+        <div class="editor-body">
+          <textarea class="editor-input" id="newNoteInput"
+            placeholder="Notiz schreiben… Markdown wird unterstützt.&#10;&#10;- [ ] Todo-Aufgabe&#10;- [x] Erledigte Aufgabe"></textarea>
+          <div class="editor-preview md" id="newNotePreview">
+            <span class="editor-preview-empty">Vorschau erscheint hier…</span>
+          </div>
+        </div>
+        <div class="editor-actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="newNoteCancel">Abbrechen</button>
+          <button type="button" class="btn btn-primary btn-sm" id="newNoteSave">Speichern</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notizen-Liste -->
+    <div id="notesList">
+      {% for note in project.get('notes_list', []) %}
+      <div class="note-card" data-nid="{{ note.id }}">
+        <div class="note-view md"></div>
+        <div class="note-inline-editor">
+          <div class="editor-toolbar">
+            <span>BEARBEITEN · MARKDOWN</span>
+            <span class="editor-status"></span>
+          </div>
+          <div class="editor-body">
+            <textarea class="editor-input"></textarea>
+            <div class="editor-preview md"></div>
+          </div>
+          <div class="editor-actions">
+            <button type="button" class="btn btn-secondary btn-sm js-cancel">Abbrechen</button>
+            <button type="button" class="btn btn-primary btn-sm js-save">Speichern</button>
+          </div>
+        </div>
+        <div class="note-footer">
+          <div class="note-meta">
+            <span class="note-author">{{ note.get('author', 'admin') }}</span>
+            <span class="js-created">{{ note.created }}</span>
+            {% if note.get('updated') %}<span class="js-updated">· bearbeitet {{ note.updated }}</span>{% endif %}
+          </div>
+          <div class="note-actions">
+            <button class="note-btn js-edit" type="button">Bearbeiten</button>
+            <button class="note-btn danger js-del" type="button">Löschen</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not project.get('notes_list') %}
+      <div class="empty-panel" id="emptyState">
+        <div class="empty-title">Noch keine Notizen.</div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const PID        = {{ project.id | tojson }};
+  const NOTES_DATA = {{ project.get('notes_list', []) | tojson }};
+
+  // ── Hilfsfunktionen ────────────────────────────────────────────────────────
+
+  function md(text) {
+    return marked.parse(text || '', { breaks: true, gfm: true });
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function setStatus(el, state, text) {
+    el.className = 'editor-status' + (state ? ' ' + state : '');
+    el.textContent = text || { saving: 'Speichere…', saved: '✓ Gespeichert', error: '✗ Fehler' }[state] || '';
+  }
+
+  async function api(url, method, body) {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return res.json();
+  }
+
+  function debounce(fn, ms) {
+    let t;
+    return function (...args) { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  }
+
+  function enableCheckboxes(container, getContent, onSave) {
+    container.querySelectorAll('input[type=checkbox]').forEach((cb, idx) => {
+      cb.removeAttribute('disabled');
+      cb.addEventListener('change', function () {
+        let i = -1;
+        const updated = getContent().replace(/- \[(x| )\]/gi, match => {
+          i++;
+          return i === idx ? (this.checked ? '- [x]' : '- [ ]') : match;
+        });
+        onSave(updated);
+      });
+    });
+  }
+
+  function removeEmptyState() {
+    const el = document.getElementById('emptyState');
+    if (el) el.remove();
+  }
+
+  // ── Neue Notiz ─────────────────────────────────────────────────────────────
+
+  const trigger   = document.getElementById('newNoteTrigger');
+  const panel     = document.getElementById('newNotePanel');
+  const input     = document.getElementById('newNoteInput');
+  const preview   = document.getElementById('newNotePreview');
+  const statusEl  = document.getElementById('newNoteStatus');
+  const cancelBtn = document.getElementById('newNoteCancel');
+  const saveBtn   = document.getElementById('newNoteSave');
+
+  trigger.addEventListener('click', () => {
+    panel.style.display = 'block';
+    trigger.style.display = 'none';
+    input.focus();
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    panel.style.display = 'none';
+    trigger.style.display = '';
+    input.value = '';
+    preview.innerHTML = '<span class="editor-preview-empty">Vorschau erscheint hier…</span>';
+    setStatus(statusEl, '');
+  });
+
+  input.addEventListener('input', () => {
+    preview.innerHTML = input.value.trim() ? md(input.value) : '<span class="editor-preview-empty">Vorschau erscheint hier…</span>';
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    const content = input.value.trim();
+    if (!content) return;
+    setStatus(statusEl, 'saving');
+    const data = await api(`/project/${PID}/api/notes`, 'POST', { content });
+    if (data.ok) {
+      removeEmptyState();
+      mountCard(data.note, true);
+      cancelBtn.click();
+    } else {
+      setStatus(statusEl, 'error');
+    }
+  });
+
+  // ── Notiz-Karte initialisieren ─────────────────────────────────────────────
+
+  function mountCard(note, prepend) {
+    let card;
+    if (prepend) {
+      card = buildCardEl(note);
+      document.getElementById('notesList').prepend(card);
+    } else {
+      card = document.querySelector(`.note-card[data-nid="${note.id}"]`);
+      if (!card) return;
+    }
+    initCard(card, note.content);
+  }
+
+  function buildCardEl(note) {
+    const card = document.createElement('div');
+    card.className = 'note-card';
+    card.dataset.nid = note.id;
+    card.innerHTML = `
+      <div class="note-view md"></div>
+      <div class="note-inline-editor">
+        <div class="editor-toolbar">
+          <span>BEARBEITEN · MARKDOWN</span>
+          <span class="editor-status"></span>
+        </div>
+        <div class="editor-body">
+          <textarea class="editor-input"></textarea>
+          <div class="editor-preview md"></div>
+        </div>
+        <div class="editor-actions">
+          <button type="button" class="btn btn-secondary btn-sm js-cancel">Abbrechen</button>
+          <button type="button" class="btn btn-primary btn-sm js-save">Speichern</button>
+        </div>
+      </div>
+      <div class="note-footer">
+        <div class="note-meta">
+          <span class="note-author">${escHtml(note.author || 'admin')}</span>
+          <span class="js-created">${escHtml(note.created)}</span>
+        </div>
+        <div class="note-actions">
+          <button class="note-btn js-edit" type="button">Bearbeiten</button>
+          <button class="note-btn danger js-del" type="button">Löschen</button>
+        </div>
+      </div>`;
+    return card;
+  }
+
+  function initCard(card, initialContent) {
+    const nid         = card.dataset.nid;
+    const viewEl      = card.querySelector('.note-view');
+    const editorEl    = card.querySelector('.note-inline-editor');
+    const textareaEl  = card.querySelector('.editor-input');
+    const edPreview   = card.querySelector('.editor-preview');
+    const edStatus    = card.querySelector('.editor-status');
+    const editBtn     = card.querySelector('.js-edit');
+    const cancelBtn   = card.querySelector('.js-cancel');
+    const saveBtnEl   = card.querySelector('.js-save');
+    const delBtn      = card.querySelector('.js-del');
+    const updatedEl   = card.querySelector('.js-updated');
+
+    let current = initialContent;
+    let saveTimer;
+
+    // Ansicht rendern
+    function renderView() {
+      viewEl.innerHTML = md(current);
+      enableCheckboxes(viewEl, () => current, (raw) => {
+        current = raw;
+        renderView();
+        autosave(raw);
+      });
+    }
+
+    // Autosave (debounced 800ms)
+    const autosave = debounce(async (text) => {
+      setStatus(edStatus, 'saving');
+      const data = await api(`/project/${PID}/api/notes/${nid}`, 'PATCH', { content: text });
+      if (data.ok) {
+        current = text;
+        setStatus(edStatus, 'saved');
+        const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        if (updatedEl) {
+          updatedEl.textContent = '· bearbeitet ' + now;
+        } else {
+          const span = document.createElement('span');
+          span.className = 'js-updated';
+          span.textContent = '· bearbeitet ' + now;
+          card.querySelector('.js-created').after(span);
+        }
+      } else {
+        setStatus(edStatus, 'error');
+      }
+    }, 800);
+
+    // Edit-Modus
+    editBtn.addEventListener('click', () => {
+      textareaEl.value = current;
+      edPreview.innerHTML = md(current);
+      viewEl.style.display = 'none';
+      editorEl.style.display = 'block';
+      textareaEl.focus();
+    });
+
+    textareaEl.addEventListener('input', () => {
+      edPreview.innerHTML = md(textareaEl.value);
+      autosave(textareaEl.value.trim());
+    });
+
+    saveBtnEl.addEventListener('click', async () => {
+      const text = textareaEl.value.trim();
+      if (!text) return;
+      clearTimeout(saveTimer);
+      setStatus(edStatus, 'saving');
+      const data = await api(`/project/${PID}/api/notes/${nid}`, 'PATCH', { content: text });
+      if (data.ok) {
+        current = text;
+        renderView();
+        viewEl.style.display = '';
+        editorEl.style.display = 'none';
+        setStatus(edStatus, '');
+      } else {
+        setStatus(edStatus, 'error');
+      }
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      viewEl.style.display = '';
+      editorEl.style.display = 'none';
+      setStatus(edStatus, '');
+    });
+
+    delBtn.addEventListener('click', async () => {
+      if (!confirm('Notiz löschen?')) return;
+      const data = await api(`/project/${PID}/api/notes/${nid}`, 'DELETE');
+      if (data.ok) {
+        card.remove();
+        if (!document.querySelector('.note-card')) {
+          const list = document.getElementById('notesList');
+          list.innerHTML = '<div class="empty-panel" id="emptyState"><div class="empty-title">Noch keine Notizen.</div></div>';
+        }
+      }
+    });
+
+    renderView();
+  }
+
+  // ── Alle server-gerenderten Karten initialisieren ──────────────────────────
+
+  NOTES_DATA.forEach(note => mountCard(note, false));
+
+})();
+</script>
+{% endblock %}

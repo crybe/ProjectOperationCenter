@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+{% block title %}Growbox – DevHub{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+/* ═══ TABS ══════════════════════════════════════════════════════════════════ */
+.grow-tabbar {
+  display: flex; gap: 2px; padding: 0 32px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(5,6,6,0.6); backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+.grow-tab {
+  padding: 12px 20px; font-size: 13px; font-weight: 600;
+  color: var(--muted); border: none; background: none; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  display: flex; align-items: center; gap: 7px;
+  transition: color .15s, border-color .15s;
+}
+.grow-tab:hover { color: var(--text); }
+.grow-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ═══ CONTROLLER ════════════════════════════════════════════════════════════ */
+.ctrl-page { padding: 24px 32px 48px; max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+/* Status-Header */
+.ctrl-statusbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 18px; border-radius: 12px;
+  background: rgba(141,255,177,0.04); border: 1px solid rgba(141,255,177,0.1);
+}
+.ctrl-pulse { width:8px; height:8px; border-radius:50%; background:var(--green); animation:server-pulse 2s ease-in-out infinite; flex-shrink:0; }
+.ctrl-name  { font-size:14px; font-weight:700; color:var(--text); }
+.ctrl-sep   { color:rgba(255,255,255,.15); }
+.ctrl-badge { font-size:12px; padding:3px 10px; border-radius:20px; background:rgba(141,255,177,0.08); border:1px solid rgba(141,255,177,0.18); color:var(--accent); font-weight:600; }
+.ctrl-refresh-info { margin-left:auto; font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+.ctrl-water-badge { font-size:12px; padding:3px 10px; border-radius:20px; font-weight:600; display:none; }
+.ctrl-water-badge.ok       { background:rgba(0,229,107,0.1); border:1px solid rgba(0,229,107,0.2); color:#00e56b; }
+.ctrl-water-badge.soon     { background:rgba(255,200,0,0.1); border:1px solid rgba(255,200,0,0.25); color:#ffc800; }
+.ctrl-water-badge.due      { background:rgba(255,140,0,0.1); border:1px solid rgba(255,140,0,0.25); color:#ff8c00; }
+.ctrl-water-badge.overdue  { background:rgba(255,80,80,0.12); border:1px solid rgba(255,80,80,0.3); color:#ff5050; }
+
+/* Gauge-Row */
+.gauge-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.gauge-card {
+  background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px; padding: 18px 14px; display: flex; flex-direction: column;
+  align-items: center; gap: 8px; position: relative; overflow: hidden;
+  transition: border-color .2s;
+}
+.gauge-card:hover { border-color: rgba(141,255,177,0.15); }
+.gauge-card::after {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(141,255,177,0.2),transparent);
+}
+.g-label { font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); font-weight:600; }
+.g-svg   { position:relative; width:120px; height:120px; }
+.g-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.g-val  { font-size:24px; font-weight:800; letter-spacing:-.04em; color:var(--text); line-height:1; }
+.g-unit { font-size:11px; color:var(--muted); }
+.g-sub  { font-size:11px; color:var(--muted); text-align:center; line-height:1.4; }
+
+/* Port-Grid */
+.port-section-title { font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); font-weight:600; }
+.port-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+.port-card {
+  background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);
+  border-radius:12px; padding:16px 18px; display:flex; align-items:center; gap:16px;
+  transition:border-color .2s, background .2s;
+}
+.port-card.on { border-color:rgba(141,255,177,0.2); background:rgba(141,255,177,0.03); }
+.port-icon { font-size:22px; flex-shrink:0; }
+.port-info { flex:1; min-width:0; }
+.port-name { font-size:14px; font-weight:700; color:var(--text); }
+.port-sub  { font-size:11px; color:var(--muted); margin-top:1px; }
+.port-bar-wrap { margin-top:8px; }
+.port-bar-track { height:4px; background:rgba(255,255,255,0.08); border-radius:99px; overflow:hidden; }
+.port-bar-fill  { height:100%; border-radius:99px; transition:width .7s ease; }
+.port-bar-label { font-size:10px; color:var(--muted); margin-top:4px; display:flex; justify-content:space-between; }
+.port-right { display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0; }
+.port-speed-big { font-size:26px; font-weight:800; letter-spacing:-.04em; color:var(--text); line-height:1; }
+.port-speed-of  { font-size:10px; color:var(--muted); }
+.port-mode { font-size:11px; padding:2px 8px; border-radius:20px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:var(--muted); font-weight:600; }
+.port-mode.on { background:rgba(141,255,177,0.1); border-color:rgba(141,255,177,0.25); color:var(--accent); }
+.port-dot { width:7px; height:7px; border-radius:50%; background:var(--muted); }
+.port-dot.on { background:var(--green); animation:server-pulse 2.5s ease-in-out infinite; }
+
+/* Ernte-Bar */
+.ernte-card {
+  background:rgba(255,255,255,0.02); border:1px solid rgba(141,255,177,0.1);
+  border-radius:14px; padding:18px 22px;
+}
+.ernte-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+.ernte-left { display:flex; align-items:baseline; gap:8px; }
+.ernte-num  { font-size:28px; font-weight:800; letter-spacing:-.04em; }
+.ernte-unit { font-size:13px; color:var(--muted); }
+.ernte-track { height:7px; background:rgba(255,255,255,0.07); border-radius:99px; overflow:hidden; }
+.ernte-fill  { height:100%; border-radius:99px; background:linear-gradient(90deg,rgba(141,255,177,0.35),var(--accent)); transition:width 1s ease; }
+.ernte-foot  { display:flex; justify-content:space-between; margin-top:6px; font-size:11px; color:var(--muted); }
+
+/* ═══ LOGBUCH ══════════════════════════════════════════════════════════════ */
+.log-page { padding: 20px 32px 48px; max-width: 860px; margin: 0 auto; }
+.gl-timeline { position:relative; margin-top:16px; }
+.gl-timeline::before { content:''; position:absolute; left:19px; top:4px; bottom:4px; width:2px; background:linear-gradient(to bottom,var(--accent),transparent); opacity:.25; }
+.gl-entry { display:flex; gap:14px; margin-bottom:14px; }
+.gl-dot { width:40px; height:40px; border-radius:50%; background:rgba(141,255,177,0.06); border:1.5px solid rgba(141,255,177,0.25); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px; }
+.gl-card { flex:1; background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:14px 16px; }
+.gl-card:hover { border-color:rgba(255,255,255,0.13); }
+.gl-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+.gl-date { font-size:13px; font-weight:600; color:var(--text); }
+.gl-badge { font-size:11px; padding:2px 8px; border-radius:20px; font-weight:600; }
+.gl-badge-day   { background:rgba(141,255,177,0.1); color:var(--accent); border:1px solid rgba(141,255,177,0.2); }
+.gl-badge-phase { background:rgba(0,229,107,0.08); color:#00e56b; border:1px solid rgba(0,229,107,0.2); }
+.gl-metrics { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+.gl-metric  { font-size:12px; color:var(--muted); }
+.gl-metric strong { color:var(--text); }
+.gl-notes { font-size:13px; color:var(--text); line-height:1.6; white-space:pre-wrap; }
+.gl-del { float:right; background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:2px 4px; border-radius:4px; }
+.gl-del:hover { color:var(--red); }
+
+.log-add { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:18px; margin-bottom:20px; display:none; }
+.log-add.open { display:block; }
+.log-add-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:10px; }
+.log-add label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); display:block; margin-bottom:3px; }
+.log-add input, .log-add textarea { width:100%; box-sizing:border-box; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:7px 10px; color:var(--text); font-size:13px; font-family:inherit; }
+.log-add textarea { resize:vertical; }
+.log-add input:focus, .log-add textarea:focus { outline:none; border-color:var(--accent); }
+.phase-sel { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+.phase-btn { padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:var(--muted); cursor:pointer; }
+.phase-btn.active { background:rgba(0,229,107,0.1); color:#00e56b; border-color:rgba(0,229,107,0.25); }
+
+.w-stats { display:flex; gap:20px; flex-wrap:wrap; margin:12px 0; }
+.w-stat-val { font-size:22px; font-weight:700; color:#60a5fa; line-height:1; }
+.w-stat-lab { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+.w-chart-wrap { height:72px; margin-top:14px; }
+
+@media(max-width:660px) {
+  .gauge-row  { grid-template-columns:1fr; }
+  .port-grid  { grid-template-columns:1fr; }
+  .ctrl-page, .log-page { padding:16px 16px 48px; }
+  .grow-tabbar { padding:0 16px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Tab-Bar direkt unter Topbar -->
+<div class="topbar topbar-page" style="border-bottom:none;">
+  <div class="page-heading">
+    <div class="eyebrow">AC Infinity</div>
+    <span class="topbar-title">Growbox</span>
+  </div>
+  <div class="topbar-actions">
+    <span class="ctrl-refresh-info" id="refreshInfo" style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+      <span id="refreshDot" style="width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background .3s;display:inline-block;"></span>
+      <span id="lastRefresh">–</span>
+    </span>
+  </div>
+</div>
+
+<div class="grow-tabbar">
+  <button class="grow-tab active" id="tabCtrl" onclick="switchTab('ctrl')">
+    <i data-lucide="cpu" style="width:13px;height:13px;"></i> Controller
+  </button>
+  <button class="grow-tab" id="tabLog" onclick="switchTab('log')">
+    <i data-lucide="book-open" style="width:13px;height:13px;"></i> Logbuch
+  </button>
+</div>
+
+<div class="content page-scroll">
+
+  <!-- ══ CONTROLLER ══════════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="panelCtrl">
+  <div class="ctrl-page">
+
+    <!-- Status-Bar -->
+    <div class="ctrl-statusbar">
+      <span class="ctrl-pulse"></span>
+      <span class="ctrl-name">Controller 69 Pro</span>
+      <span class="ctrl-sep">·</span>
+      <span class="ctrl-badge" id="ctrlSorte">–</span>
+      <span class="ctrl-badge" id="ctrlStage">–</span>
+      <span class="ctrl-badge" id="ctrlGrowDay">G-Tag –</span>
+      <span class="ctrl-water-badge" id="ctrlWater">💧 –</span>
+      <span id="ctrlPower" style="font-size:12px;color:var(--muted);display:none;margin-left:4px;"></span>
+    </div>
+
+    <!-- Gauges -->
+    <div class="gauge-row">
+      <!-- Temp -->
+      <div class="gauge-card">
+        <div class="g-label">Temperatur</div>
+        <div class="g-svg">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="9"
+              stroke-dasharray="216 72" stroke-dashoffset="-36" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="46" fill="none" stroke="var(--accent)" stroke-width="9"
+              stroke-dasharray="0 288" stroke-dashoffset="-36" stroke-linecap="round"
+              id="gTemp" style="transition:stroke-dasharray .8s ease,stroke .4s;"/>
+          </svg>
+          <div class="g-center">
+            <div class="g-val" id="gTempVal">–</div>
+            <div class="g-unit">°C</div>
+          </div>
+        </div>
+        <div class="g-sub" id="gTempSub">–</div>
+      </div>
+      <!-- RH -->
+      <div class="gauge-card">
+        <div class="g-label">Luftfeuchtigkeit</div>
+        <div class="g-svg">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="9"
+              stroke-dasharray="216 72" stroke-dashoffset="-36" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="46" fill="none" stroke="var(--accent)" stroke-width="9"
+              stroke-dasharray="0 288" stroke-dashoffset="-36" stroke-linecap="round"
+              id="gHum" style="transition:stroke-dasharray .8s ease,stroke .4s;"/>
+          </svg>
+          <div class="g-center">
+            <div class="g-val" id="gHumVal">–</div>
+            <div class="g-unit">%</div>
+          </div>
+        </div>
+        <div class="g-sub" id="gHumSub">–</div>
+      </div>
+      <!-- VPD -->
+      <div class="gauge-card">
+        <div class="g-label">VPD</div>
+        <div class="g-svg">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="9"
+              stroke-dasharray="216 72" stroke-dashoffset="-36" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="46" fill="none" stroke="var(--accent)" stroke-width="9"
+              stroke-dasharray="0 288" stroke-dashoffset="-36" stroke-linecap="round"
+              id="gVpd" style="transition:stroke-dasharray .8s ease,stroke .4s;"/>
+          </svg>
+          <div class="g-center">
+            <div class="g-val" id="gVpdVal">–</div>
+            <div class="g-unit">kPa</div>
+          </div>
+        </div>
+        <div class="g-sub" id="gVpdSub">–</div>
+      </div>
+    </div>
+
+    <!-- Ports -->
+    <div>
+      <div class="port-section-title" style="margin-bottom:12px;">Ports</div>
+      <div class="port-grid" id="portGrid">
+        <div style="color:var(--muted);grid-column:span 2;padding:12px 0;font-size:13px;">Lade Daten…</div>
+      </div>
+    </div>
+
+    <!-- Ernte -->
+    <div class="ernte-card" id="ernteCard" style="display:none;">
+      <div class="ernte-head">
+        <div class="ernte-left">
+          <span class="ernte-num" id="ernteNum" style="color:var(--text);">–</span>
+          <span class="ernte-unit">Tage bis Ernte</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);text-align:right;" id="ernteRight">–</div>
+      </div>
+      <div class="ernte-track"><div class="ernte-fill" id="ernteFill" style="width:0%"></div></div>
+      <div class="ernte-foot">
+        <span id="ernteLeft">–</span>
+        <span id="ernteRight2">–</span>
+      </div>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- ══ LOGBUCH ══════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panelLog">
+  <div class="log-page">
+
+    <div class="surface-panel" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div class="section-title">Bewässerung</div>
+          <h2 id="wTitle" style="font-size:18px;">wird geladen…</h2>
+        </div>
+        <span style="font-size:24px;">💧</span>
+      </div>
+      <div class="w-stats" id="wStats"></div>
+      <div class="w-chart-wrap"><canvas id="wateringChart"></canvas></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="section-title">Einträge</div>
+      <button class="btn btn-primary btn-sm" onclick="toggleAddForm()">+ Neuer Eintrag</button>
+    </div>
+
+    <div class="log-add" id="addLogPanel">
+      <div class="log-add-grid">
+        <div><label>Datum</label><input type="date" id="glDate"></div>
+        <div><label>Tag #</label><input type="number" id="glDay" placeholder="z.B. 14"></div>
+        <div><label>pH</label><input type="number" id="glPh" step="0.1" placeholder="6.2"></div>
+        <div><label>EC</label><input type="number" id="glEc" step="0.01" placeholder="1.4"></div>
+      </div>
+      <label>Phase</label>
+      <div class="phase-sel">
+        <button class="phase-btn" onclick="selPhase(this,'Keimung')">Keimung</button>
+        <button class="phase-btn" onclick="selPhase(this,'Sämling')">Sämling</button>
+        <button class="phase-btn" onclick="selPhase(this,'Vegi')">Vegi</button>
+        <button class="phase-btn" onclick="selPhase(this,'Blüte')">Blüte</button>
+        <button class="phase-btn" onclick="selPhase(this,'Spülen')">Spülen</button>
+        <button class="phase-btn" onclick="selPhase(this,'Ernte')">Ernte</button>
+      </div>
+      <label>Notizen</label>
+      <textarea id="glNotes" rows="3" placeholder="Beobachtungen, Maßnahmen, Probleme…" style="margin-bottom:10px;"></textarea>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveEntry()">Speichern</button>
+        <button class="btn btn-secondary btn-sm" onclick="toggleAddForm()">Abbrechen</button>
+      </div>
+    </div>
+
+    <div id="logTimeline"><div style="color:var(--muted);font-size:13px;padding:16px 0;">Lade Einträge…</div></div>
+
+  </div>
+  </div>
+
+</div><!-- /content.page-scroll -->
+
+<script>
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    let detail = '';
+    try {
+      detail = await response.text();
+    } catch (_) {}
+    throw new Error(`${response.status} ${response.statusText}${detail ? `: ${detail.slice(0, 180)}` : ''}`);
+  }
+  return response.json();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ── Tab ──────────────────────────────────────────────────────────────────────
+function switchTab(t) {
+  ['Ctrl','Log'].forEach(n => {
+    document.getElementById('tab'+n).classList.toggle('active', n.toLowerCase()===t);
+    document.getElementById('panel'+n).classList.toggle('active', n.toLowerCase()===t);
+  });
+  if (t==='log') loadLog();
+  lucide.createIcons();
+}
+
+// ── Gauge ────────────────────────────────────────────────────────────────────
+const G_ARC = 216; // 75% von r=46 Umfang ≈ 289 → 216 = ~75%
+
+function _col(v, lo, hi) {
+  if (v==null||lo==null||hi==null) return 'var(--accent)';
+  if (v<lo||v>hi) return 'var(--red)';
+  const m=(hi-lo)*.12; if(v<lo+m||v>hi-m) return 'var(--amber)';
+  return 'var(--green)';
+}
+
+function setGauge(id, valId, subId, v, scLo, scHi, dec, col, subTxt) {
+  const pct = v!=null ? Math.max(0,Math.min(1,(v-scLo)/(scHi-scLo))) : 0;
+  const el = document.getElementById(id);
+  if (el) { el.setAttribute('stroke-dasharray',(pct*G_ARC).toFixed(1)+' 289'); el.setAttribute('stroke', col||'var(--accent)'); }
+  const ve = document.getElementById(valId); if(ve) ve.textContent = v!=null ? v.toFixed(dec) : '–';
+  const se = document.getElementById(subId); if(se && subTxt) se.innerHTML = subTxt;
+}
+
+// ── Ports ────────────────────────────────────────────────────────────────────
+function renderPorts(ports) {
+  const g = document.getElementById('portGrid');
+  if (!ports?.length) { g.innerHTML='<div style="color:var(--muted);grid-column:span 2;">Keine Port-Daten</div>'; return; }
+  g.innerHTML = ports.map(p => {
+    const spd=p.speed??0, pct=Math.round(spd/10*100);
+    const col = !p.active ? 'rgba(255,255,255,0.12)' : spd<=3 ? '#7fe39f' : spd<=7 ? '#8dffb1' : '#fbbf24';
+    return `<div class="port-card ${p.active?'on':''}">
+      <div class="port-icon">${p.icon}</div>
+      <div class="port-info">
+        <div class="port-name">${p.label}</div>
+        <div class="port-sub">${p.sub}</div>
+        <div class="port-bar-wrap">
+          <div class="port-bar-track"><div class="port-bar-fill" style="width:${pct}%;background:${col};"></div></div>
+          <div class="port-bar-label"><span>${p.active?'Aktiv':'Inaktiv'}</span><span>${pct}%</span></div>
+        </div>
+      </div>
+      <div class="port-right">
+        <div style="text-align:right;"><div class="port-speed-big">${spd}</div><div class="port-speed-of">/ 10</div></div>
+        <span class="port-mode ${p.active?'on':''}">${p.mode}</span>
+        <span class="port-dot ${p.active?'on':''}"></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Controller laden ──────────────────────────────────────────────────────────
+function loadController() {
+  fetchJson('{{ url_for("api.grow_controller") }}').then(d => {
+    // Status-Bar
+    document.getElementById('ctrlSorte').textContent   = d.sorte||'–';
+    document.getElementById('ctrlStage').textContent   = d.grow_stage||'–';
+    document.getElementById('ctrlGrowDay').textContent = d.grow_day!=null ? 'G-Tag '+d.grow_day : 'G-Tag –';
+    const pw=document.getElementById('ctrlPower');
+    if(pw){
+      if(d.power_w!=null){pw.textContent='⚡ '+d.power_w+' W';pw.style.display='';}
+      else{pw.textContent='';pw.style.display='none';}
+    }
+
+    // Gauges
+    setGauge('gTemp','gTempVal','gTempSub', d.temp, 10, 40, 1, _col(d.temp,d.temp_ziel_min,d.temp_ziel_max),
+      (d.temp_min_24h!=null?'↓'+d.temp_min_24h+'° ↑'+d.temp_max_24h+'° · ':'')+'Ziel '+d.temp_ziel_min+'–'+d.temp_ziel_max+'°');
+    setGauge('gHum','gHumVal','gHumSub', d.hum, 0, 100, 1, _col(d.hum,d.hum_ziel_min,d.hum_ziel_max),
+      (d.hum_min_24h!=null?'↓'+d.hum_min_24h+'% ↑'+d.hum_max_24h+'% · ':'')+'Ziel '+d.hum_ziel_min+'–'+d.hum_ziel_max+'%');
+    setGauge('gVpd','gVpdVal','gVpdSub', d.vpd, 0, 2.5, 2, _col(d.vpd,d.vpd_opt_min,d.vpd_opt_max),
+      'Optimal '+d.vpd_opt_min+'–'+d.vpd_opt_max+' kPa');
+
+    renderPorts(d.ports);
+
+    // Ernte
+    if(d.ernte_days!=null) {
+      document.getElementById('ernteCard').style.display='';
+      const n=document.getElementById('ernteNum');
+      n.textContent=d.ernte_days>0?d.ernte_days:'Überfällig!';
+      n.style.color=d.ernte_days<=7?'var(--amber)':'var(--text)';
+      document.getElementById('ernteFill').style.width=(d.bluete_pct||0)+'%';
+      document.getElementById('ernteLeft').textContent='Blüte Tag '+(d.bluete_day||'–')+' / '+(d.bluete_dauer||'–');
+      document.getElementById('ernteRight2').textContent=(d.bluete_pct||0)+'% abgeschlossen';
+      document.getElementById('ernteRight').textContent='G-Tag '+(d.grow_day||'–');
+    }
+
+    // Bewässerungs-Badge (umgebungsgewichtet)
+    const wb=document.getElementById('ctrlWater');
+    if(wb && d.watering_days_since!=null){
+      wb.className='ctrl-water-badge '+d.watering_alert;
+      wb.style.display='inline-block';
+      const _wu=d.watering_days_until;
+      let _wtxt='💧 ';
+      if(_wu==null){
+        _wtxt+='Letzte Bewässerung: '+d.watering_days_since+'d';
+      } else if(_wu>2){
+        _wtxt+='Gießen in ~'+Math.round(_wu)+'d';
+      } else if(_wu>0.5){
+        _wtxt+='Bald gießen (~'+_wu.toFixed(1)+'d)';
+      } else if(_wu>-0.5){
+        _wtxt+='Heute gießen';
+      } else {
+        _wtxt+='Überfällig ('+Math.abs(_wu).toFixed(1)+'d)';
+      }
+      if(d.watering_adj_interval) _wtxt+=' · Ø '+d.watering_adj_interval+'d';
+      wb.textContent=_wtxt;
+    } else if (wb) {
+      wb.style.display='none';
+      wb.textContent='💧 –';
+    }
+
+    const dot=document.getElementById('refreshDot');
+    if(dot) dot.style.background='var(--green)';
+    document.getElementById('lastRefresh').textContent=new Date().toLocaleTimeString('de',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  }).catch(()=>{
+    const dot=document.getElementById('refreshDot');
+    if(dot) dot.style.background='var(--red)';
+    document.getElementById('lastRefresh').textContent='API-Fehler';
+  });
+}
+
+// ── Log laden ─────────────────────────────────────────────────────────────────
+let _logLoading=false, _wChart=null;
+async function loadLog() {
+  if(_logLoading) return;
+  _logLoading=true;
+
+  // Einträge
+  try {
+    const entries = await fetchJson('/api/grow-log-list');
+    const tl=document.getElementById('logTimeline');
+    if(!entries.length) { tl.innerHTML='<div style="color:var(--muted);padding:20px 0;text-align:center;">Noch keine Einträge.</div>'; }
+    else tl.innerHTML='<div class="gl-timeline">'+entries.map(e=>`
+      <div class="gl-entry" id="gle-${e.id}">
+        <div class="gl-dot">🌿</div>
+        <div class="gl-card">
+          <button class="gl-del" onclick="delEntry('${e.id}')" title="Löschen">✕</button>
+          <div class="gl-head">
+            <span class="gl-date">${escapeHtml(e.date)}</span>
+            ${e.day?`<span class="gl-badge gl-badge-day">Tag ${escapeHtml(e.day)}</span>`:''}
+            ${e.phase?`<span class="gl-badge gl-badge-phase">${escapeHtml(e.phase)}</span>`:''}
+          </div>
+          ${(e.ph||e.ec)?`<div class="gl-metrics">
+            ${e.ph?`<span class="gl-metric">💧 pH <strong>${escapeHtml(e.ph)}</strong></span>`:''}
+            ${e.ec?`<span class="gl-metric">⚡ EC <strong>${escapeHtml(e.ec)}</strong></span>`:''}
+          </div>`:''}
+          ${e.notes?`<div class="gl-notes">${escapeHtml(e.notes)}</div>`:''}
+        </div>
+      </div>`).join('')+'</div>';
+  } catch(e){ document.getElementById('logTimeline').innerHTML='<div style="color:var(--muted);">Fehler</div>'; }
+
+  // Bewässerung
+  try {
+    const d=await fetchJson('/api/watering-history');
+    document.getElementById('wTitle').textContent=d.count?d.count+' Bewässerung'+(d.count===1?'':'en'):'Keine Einträge';
+    const st=[];
+    if(d.days_since_last!=null) st.push({v:d.days_since_last<1?'heute':'vor '+d.days_since_last+'d',l:'Letzte'});
+    if(d.avg_interval_days!=null) st.push({v:'Ø '+d.avg_interval_days+'d',l:'Intervall'});
+    if(d.count) st.push({v:d.count,l:'Gesamt'});
+    document.getElementById('wStats').innerHTML=st.map(s=>`<div><div class="w-stat-val">${s.v}</div><div class="w-stat-lab">${s.l}</div></div>`).join('');
+    if(_wChart){
+      _wChart.destroy();
+      _wChart=null;
+    }
+    if(d.events?.length) {
+      const now=Date.now(), ft=Math.min(...d.events.map(e=>e.ts));
+      _wChart=new Chart(document.getElementById('wateringChart'),{
+        type:'scatter',
+        data:{datasets:[{data:d.events.map(e=>({x:e.ts,y:1})),backgroundColor:'rgba(96,165,250,0.85)',pointRadius:9,pointHoverRadius:12}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>d.events[ctx.dataIndex]?.dt?.slice(0,10)||''}}},
+          scales:{x:{type:'time',time:{unit:'day',displayFormats:{day:'dd.MM.'}},min:ft-172800000,max:now+172800000,
+            grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.35)',maxTicksLimit:8}},
+            y:{display:false,min:0.5,max:1.5}}}});
+    }
+  } catch(e){}
+  document.getElementById('glDate').value=new Date().toISOString().slice(0,10);
+  _logLoading=false;
+}
+
+// Log-Formular
+let _phase='';
+function selPhase(b,p){document.querySelectorAll('.phase-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');_phase=p;}
+function toggleAddForm(){document.getElementById('addLogPanel').classList.toggle('open');}
+async function saveEntry(){
+  const b={date:document.getElementById('glDate').value,day:document.getElementById('glDay').value,
+    phase:_phase,ph:document.getElementById('glPh').value,ec:document.getElementById('glEc').value,
+    notes:document.getElementById('glNotes').value.trim()};
+  if(!b.notes&&!b.ph&&!b.ec){showToast('Notiz, pH oder EC angeben','err');return;}
+  try {
+    await fetchJson('/api/grow-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+    showToast('Gespeichert ✓');
+    document.getElementById('addLogPanel').classList.remove('open');
+    loadLog();
+  } catch (e) {
+    showToast('Speichern fehlgeschlagen','err');
+  }
+}
+async function delEntry(id){
+  if(!confirm('Löschen?'))return;
+  try {
+    await fetchJson('/api/grow-log/'+id,{method:'DELETE'});
+    document.getElementById('gle-'+id)?.remove();
+    showToast('Gelöscht','info');
+  } catch (e) {
+    showToast('Löschen fehlgeschlagen','err');
+  }
+}
+
+loadController();
+setInterval(loadController,15000);
+</script>
+{% endblock %}

@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} – Code Review & Audit{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  .audit-panel { min-height: 400px; display: flex; flex-direction: column; }
+  .analyse-cursor { display: inline-block; width: 8px; height: 16px; background: var(--accent); animation: blink 1s step-end infinite; vertical-align: bottom; margin-left: 4px; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .pending-patch-card {
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 16px; border-radius: 12px;
+    background: rgba(63,208,191,0.04);
+    border: 1px solid rgba(63,208,191,0.15);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .pending-patch-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    border-color: rgba(63,208,191,0.3);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div class="page-heading">
+    <div class="eyebrow">Quality & Intelligence</div>
+    <span class="topbar-title">{{ project.name }}</span>
+  </div>
+  <div class="topbar-actions">
+    <a href="{{ url_for('board.board',            pid=project.id) }}" class="tab">⊞ Board</a>
+    <a href="{{ url_for('files.files',            pid=project.id) }}" class="tab">📁 Files</a>
+    <a href="{{ url_for('board.review',           pid=project.id) }}" class="tab active">⎇ Code Review</a>
+    <a href="{{ url_for('board.project_activity', pid=project.id) }}" class="tab">● Aktivität</a>
+    <a href="{{ url_for('board.project_edit', pid=project.id) }}" class="btn btn-secondary btn-sm" style="margin-left: 12px;">Bearbeiten</a>
+  </div>
+</div>
+
+<div class="content page-scroll">
+<div class="dashboard-wrap">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="flash flash-{{ cat }}" style="margin-bottom:20px;">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+
+  <!-- Pending Patches & Changelog Top Row -->
+  <div class="dash-grid-2col" style="align-items: start; margin-bottom: 24px;">
+
+    <!-- Left: Pending AI Patches -->
+    <article class="surface-panel" style="padding: 24px;">
+      <div class="panel-head panel-head-tight" style="margin-bottom: 20px;">
+        <div>
+          <div class="section-title">Action Required</div>
+          <h2>Pending AI Patches</h2>
+        </div>
+      </div>
+      
+      <div style="display:flex; flex-direction: column; gap: 12px;">
+        {% set pending_tasks = [] %}
+        {% for t in project.tasks if t.status == 'review' and t.ai_patch %}
+          {% set _ = pending_tasks.append(t) %}
+        {% endfor %}
+        
+        {% if pending_tasks|length > 0 %}
+          {% for t in pending_tasks %}
+            <div class="pending-patch-card">
+              <div style="display:flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-weight: 600; color: var(--text);">{{ t.title }}</div>
+                <span class="badge" style="background: rgba(63,208,191,0.1); color: var(--accent); border: 1px solid rgba(63,208,191,0.2);">{{ t.ai_patch.model }}</span>
+              </div>
+              <p style="font-size: 13px; color: var(--muted); margin: 0; line-height: 1.5;">{{ t.description | truncate(80) }}</p>
+              <div style="display:flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                <code style="font-size: 11px; color: var(--muted);">{{ t.ai_patch.file.split('/')[-1] if t.ai_patch.file else 'Code Snippet' }}</code>
+                <a href="{{ url_for('ai.ai_review_page', pid=project.id, tid=t.id) }}" class="btn btn-primary btn-sm">Review Patch →</a>
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="activity-empty" style="text-align: center; padding: 32px 0;">
+            Keine offenen Code-Patches zur Prüfung.
+          </div>
+        {% endif %}
+      </div>
+    </article>
+
+    <!-- Right: Changelog -->
+    <article class="surface-panel" style="padding: 24px;">
+      <div class="panel-head panel-head-tight" style="margin-bottom: 20px;">
+        <div>
+          <div class="section-title">History</div>
+          <h2>Changelog</h2>
+        </div>
+      </div>
+      
+      <div class="cl-form" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <form method="post" action="{{ url_for('board.changelog_add', pid=project.id) }}" style="display: flex; flex-direction: column; gap: 10px;">
+          <input type="text" class="form-control" name="version" placeholder="Version (z.B. v1.2.0)" style="max-width: 180px;">
+          <textarea class="form-control" name="changes" rows="2" placeholder="Was wurde geändert?"></textarea>
+          <button type="submit" class="btn btn-secondary btn-sm" style="align-self: flex-start;">+ Speichern</button>
+        </form>
+      </div>
+      
+      <div style="display:flex; flex-direction: column; gap: 16px;">
+        {% if project.changelog %}
+          {% for entry in project.changelog %}
+          <div class="cl-entry" style="position: relative; padding-left: 16px; border-left: 2px solid rgba(255,255,255,0.08);">
+            <div class="cl-meta" style="margin-bottom: 4px;">
+              <span class="cl-date" style="font-weight: 600; color: var(--muted); font-size: 12px;">{{ entry.date }}</span>
+              {% if entry.version %}
+                <span class="cl-ver" style="margin-left: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 6px; background: rgba(255,255,255,0.05); border-radius: 4px;">{{ entry.version }}</span>
+              {% endif %}
+            </div>
+            <div class="cl-text" style="font-size: 13px; color: var(--text); line-height: 1.5; white-space: pre-wrap;">{{ entry.changes }}</div>
+            <form method="post" action="{{ url_for('board.changelog_delete', pid=project.id, idx=loop.index0) }}" style="position: absolute; top: 0; right: 0;">
+              <button type="submit" class="cl-del" style="background:none; border:none; color: var(--muted); cursor: pointer;">✕</button>
+            </form>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p style="color:var(--muted);font-size:13px; margin:0;">Noch keine Einträge.</p>
+        {% endif %}
+      </div>
+    </article>
+
+  </div>
+
+  <!-- Full Width: AI Code Auditor -->
+  <article class="surface-panel audit-panel" style="padding: 0; overflow: hidden;">
+    <div class="panel-head panel-head-tight" style="padding: 24px; border-bottom: 1px solid rgba(255,255,255,0.06); margin: 0; background: rgba(0,0,0,0.1);">
+      <div>
+        <div class="section-title">Automated Analysis</div>
+        <h2 style="display:flex; align-items:center; gap:10px;">
+          KI Code Auditor
+          <span id="analyseStatus" style="font-size:12px;color:var(--muted);font-weight:400; font-family: 'JetBrains Mono', monospace;"></span>
+        </h2>
+      </div>
+      <button class="btn btn-primary" id="analyseBtn" onclick="startAnalyse()">
+        <i data-lucide="play" style="width: 16px;"></i> Scan & Audit
+      </button>
+    </div>
+    
+    <!-- Placeholder State -->
+    <div id="analysePlaceholder" style="padding: 80px 24px; text-align: center; color: var(--muted);">
+      <div style="font-size: 48px; opacity: 0.1; margin-bottom: 16px;">🤖</div>
+      <h3 style="color: var(--text); font-size: 18px; margin-bottom: 8px;">Workspace Audit</h3>
+      <p style="font-size: 14px; max-width: 460px; margin: 0 auto; line-height: 1.6;">
+        Der KI Auditor nutzt <code style="padding:2px 6px; background: rgba(255,255,255,0.05); border-radius:4px;">llama-3.3-70b</code> um alle Projektdateien auf tiefliegende Fehler, Sicherheitslücken und Anti-Patterns zu prüfen.
+      </p>
+    </div>
+    
+    <!-- Render State -->
+    <div id="analyseBody" style="display:none; padding: 24px; font-size: 14px; line-height: 1.7; color: var(--text); overflow-y: auto; max-height: 600px; background: #0b0f13;">
+      <div class="markdown-body" id="analyseResult"></div>
+    </div>
+  </article>
+
+</div>
+</div>
+
+<script>
+lucide.createIcons();
+
+let analyseRunning = false;
+
+function startAnalyse() {
+  if (analyseRunning) return;
+  analyseRunning = true;
+  
+  const btn         = document.getElementById('analyseBtn');
+  const status      = document.getElementById('analyseStatus');
+  const body        = document.getElementById('analyseBody');
+  const placeholder = document.getElementById('analysePlaceholder');
+  const result      = document.getElementById('analyseResult');
+  
+  btn.innerHTML      = '<span class="analyse-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></span> Audit läuft...';
+  btn.disabled       = true;
+  status.textContent = 'Analyzing syntax & structure...';
+  
+  body.style.display = 'block';
+  if (placeholder) placeholder.style.display = 'none';
+  result.innerHTML   = '<div style="color:var(--muted); font-family: monospace;">Fetching project files...</div>';
+  
+  let fullText = '';
+  const es = new EventSource('{{ url_for("ai.analyze_gemini", pid=project.id) }}');
+  
+  es.onmessage = (e) => {
+    if (e.data === '[DONE]') {
+      es.close(); analyseRunning = false;
+      btn.innerHTML = '<i data-lucide="rotate-cw" style="width:16px;"></i> Neues Audit';
+      lucide.createIcons({root: btn});
+      btn.disabled = false;
+      status.innerHTML = '<span style="color:var(--green);">✓ Scan beendet</span>';
+      result.innerHTML = marked.parse(fullText);
+      return;
+    }
+    try {
+      const d = JSON.parse(e.data);
+      if (d.error) {
+        es.close(); analyseRunning = false;
+        btn.textContent = 'Erneut versuchen'; btn.disabled = false;
+        result.innerHTML = `<div style="color:#fca5a5; padding:16px; border:1px solid rgba(252,165,165,0.2); border-radius:8px;">${d.error}</div>`;
+        return;
+      }
+      fullText += d.text;
+      result.innerHTML = marked.parse(fullText) + '<span class="analyse-cursor"></span>';
+    } catch(err) {}
+  };
+  es.onerror = () => {
+    es.close(); analyseRunning = false;
+    btn.textContent = 'Erneut prüfen'; btn.disabled = false;
+    if (!fullText) result.innerHTML = '<div style="color:#fca5a5;">Verbindungsfehler oder LLM-Backend nicht erreichbar.</div>';
+  };
+}
+
+// Add keyframes dynamically for spinner
+const style = document.createElement('style');
+style.innerHTML = `@keyframes spin { 100% { transform: rotate(360deg); } }
+.markdown-body { background: transparent; color: inherit; }
+.markdown-body pre { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 16px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5; }
+.markdown-body code { background: rgba(255,255,255,0.06); padding: 2px 4px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+.markdown-body pre code { background: transparent; padding: 0; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3 { border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px; margin-top: 24px; color: #fff; }`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

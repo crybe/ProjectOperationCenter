@@ -1,0 +1,17 @@
+:root {
+  --bg: #0b1220;
+  --sidebar: #0f172a;
+  --surface: #131d31;
+  --surface2: #172338;
+  --border: rgba(148, 163, 184, 0.16);
+  --text: #edf2fb;
+  --muted: #94a3b8;
+  --accent: #7cc4ff;
+  --green: #6fd8a4;
+  --amber: #f5b66f;
+  --red: #ff7b72;
+  --purple: #a8b4ff;
+  --radius: 18px;
+  --sidebar-w: 288px;
+  --font-size: 16px;
+}

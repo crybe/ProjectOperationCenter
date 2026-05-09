@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}VPanel – Security Check{% endblock %}
+
+{% block head %}
+<style>
+  .verify-wrapper {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 50%, rgba(0, 255, 204, 0.03) 0%, transparent 100%);
+  }
+  .verify-card {
+    background: rgba(23, 28, 41, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 48px;
+    width: 100%;
+    max-width: 440px;
+    text-align: center;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    animation: slideUp 0.5s ease-out;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  
+  .verify-icon {
+    width: 64px; height: 64px;
+    background: rgba(0, 255, 204, 0.1);
+    color: #00ffcc;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    border: 1px solid rgba(0, 255, 204, 0.2);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="verify-wrapper">
+  <div class="verify-card">
+    <div class="verify-icon">
+      <i data-lucide="shield-check" style="width: 32px; height: 32px;"></i>
+    </div>
+    <h2 style="font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 12px;">Mission Control</h2>
+    <p style="font-size: 14px; color: var(--muted); margin-bottom: 32px; line-height: 1.6;">
+      Identität bestätigen, um Zugriff auf die Systemsteuerung freizuschalten.
+    </p>
+
+    {% if error %}
+    <div style="background: rgba(248, 81, 73, 0.1); border: 1px solid rgba(248, 81, 73, 0.2); color: #f85149; padding: 12px; border-radius: 8px; margin-bottom: 24px; font-size: 13px;">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="POST">
+      <div style="margin-bottom: 24px; text-align: left;">
+        <label style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; color: var(--muted);">Passwort</label>
+        <input type="password" name="password" class="form-control" placeholder="••••••••" required autofocus 
+          style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 12px 16px; border-radius: 10px;">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; border-radius: 10px; font-weight: 700; background: #00ffcc; color: #000;">Zugriff gewähren</button>
+    </form>
+    
+    <div style="margin-top: 32px;">
+      <a href="{{ url_for('dashboard.dashboard') }}" style="font-size: 13px; color: var(--muted); text-decoration: none; hover: color: #fff;">Zurück zum Dashboard</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

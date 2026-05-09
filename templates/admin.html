@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel – DevHub PRO{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div class="page-heading">
+    <div class="eyebrow">System Control</div>
+    <span class="topbar-title">Verwaltung & Konfiguration</span>
+    <span class="page-subline">Systemweite Einstellungen für Bot, KI und Infrastruktur.</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn btn-primary" onclick="saveConfig()">Speichern</button>
+  </div>
+</div>
+
+<div class="content page-scroll">
+  <div class="dashboard-wrap">
+
+    <div class="detail-grid">
+      <!-- Bot & API Config -->
+      <section class="surface-panel">
+        <div class="panel-head panel-head-tight">
+          <div>
+            <div class="section-title">Bot & KI Konfiguration</div>
+            <h2>KI-Bot & Ollama</h2>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:20px;">
+          <label class="form-label">Telegram Bot Token</label>
+          <input class="form-control" id="botToken" type="password" value="" placeholder="Token wird aus .env geladen…">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telegram Chat-ID</label>
+          <input class="form-control" id="botChatId" type="text" value="" placeholder="Chat-ID wird aus .env geladen…">
+        </div>
+      </section>
+
+      <!-- System Tools -->
+      <section class="surface-panel">
+        <div class="panel-head panel-head-tight">
+          <div>
+            <div class="section-title">Wartung & Sicherheit</div>
+            <h2>System-Werkzeuge</h2>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px;">
+          <button class="btn btn-secondary" onclick="runTool('backup')">📦 Backup starten</button>
+          <button class="btn btn-secondary" onclick="runTool('update-yt')">📺 Update yt-dlp</button>
+          <button class="btn btn-secondary" onclick="runTool('reset-bot')">🔄 Bot Reset</button>
+          <button class="btn btn-secondary" onclick="runTool('clear-cache')">🧹 Cache leeren</button>
+        </div>
+        <div style="margin-top:20px;padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;font-family:monospace;font-size:12px;color:var(--muted);" id="toolOutput">
+          Bereit für Befehle...
+        </div>
+      </section>
+    </div>
+
+    <!-- Live Logs -->
+    <section class="surface-panel" style="margin-top:24px;">
+      <div class="panel-head panel-head-tight">
+        <div>
+          <div class="section-title">Live Logs</div>
+          <h2>Bot-Aktivität</h2>
+        </div>
+        <div class="metric-source">/logs/aktionen.log</div>
+      </div>
+      <div id="logViewer" style="height:300px;background:#000;color:#0f0;padding:12px;font-family:monospace;font-size:12px;overflow-y:auto;border-radius:8px;margin-top:16px;border:1px solid var(--glass-border);">
+        Wird geladen...
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+function saveConfig() {
+  const data = {
+    token: document.getElementById('botToken').value,
+    chat_id: document.getElementById('botChatId').value
+  };
+  fetch('/api/admin/config/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }).then(r => r.json()).then(d => {
+    alert(d.ok ? 'Konfiguration gespeichert und angewendet!' : 'Fehler beim Speichern.');
+  });
+}
+
+function runTool(tool) {
+  const output = document.getElementById('toolOutput');
+  output.textContent = 'Führe ' + tool + ' aus...';
+  fetch('/api/admin/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({tool: tool})
+  }).then(r => r.json()).then(d => {
+    output.textContent = d.output || 'Befehl ausgeführt.';
+  });
+}
+
+function updateLogs() {
+  fetch('/api/logs').then(r=>r.json()).then(d=>{
+    const viewer = document.getElementById('logViewer');
+    if(d.lines){
+      viewer.innerHTML = d.lines.join('<br>').replace(/\n/g, '<br>');
+      viewer.scrollTop = viewer.scrollHeight;
+    }
+  });
+}
+
+updateLogs();
+setInterval(updateLogs, 5000);
+</script>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}AI Butler & Analyse – DevHub PRO{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div class="page-heading">
+    <div class="eyebrow">System AI</div>
+    <span class="topbar-title">AI Butler & Insights</span>
+    <span class="page-subline">Intelligente Datenanalyse, Trend-Vorhersagen und automatisierte System-Audits.</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn btn-primary" onclick="generateAiReport()">🤖 KI-Bericht generieren</button>
+  </div>
+</div>
+
+<div class="content page-scroll">
+  <div class="dashboard-wrap">
+    <section class="pihole-panel" id="aiButlerPanel">
+      <div style="display:flex;align-items:center;">
+        <div class="pi-status-icon">🧠</div>
+        <div class="pi-info"><h3>AI Butler (Ollama/tinyllama)</h3><p id="aiReportStatus">KI-Systemanalyse ist bereit.</p></div>
+      </div>
+      <div style="display:flex;gap:12px;" id="aiActions">
+        <button class="btn btn-secondary" onclick="generateAiReport()">Optimierungsvorschläge</button>
+        <button class="btn btn-secondary" onclick="generateAiReport()">Sicherheits-Check</button>
+      </div>
+    </section>
+
+    <div id="aiReportContent" style="display:none;background:rgba(141,255,177,0.05);border:1px solid var(--accent);padding:20px;border-radius:var(--radius-lg);margin-bottom:24px;line-height:1.6;">
+      <h4 style="color:var(--accent);margin:0 0 12px;">Butler Insight Report</h4>
+      <div id="aiText">Analysiere Daten...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function generateAiReport() {
+  const content = document.getElementById('aiReportContent');
+  const text = document.getElementById('aiText');
+  content.style.display = 'block';
+  text.textContent = 'KI analysiert gerade alle Metriken (Grafana, Logs, Container)...';
+  fetch('/api/ai/analyze', {method:'POST'}).then(r=>r.json()).then(d=>{
+    text.textContent = d.report || 'Analyse abgeschlossen.';
+  }).catch(() => {
+    text.textContent = 'KI-Dienst (Ollama) antwortet nicht. Bitte prüfen Sie den Ollama-Service.';
+  });
+}
+</script>
+{% endblock %}

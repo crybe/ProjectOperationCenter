@@ -1,0 +1,23 @@
+<section style="margin-top:32px;">
+  <div class="section-header-row">
+    <div class="section-title">{{ panel.title }}</div>
+    <button class="btn btn-secondary btn-sm" id="noteAddBtn" onclick="openNoteInput()">+ Notiz</button>
+  </div>
+  <div id="noteInputWrap" style="display:none; margin-bottom:16px;">
+    <div class="postit-new">
+      <div class="postit-colors">
+        <button class="postit-color-btn active" style="background:#fef08a" data-color="#fef08a" onclick="pickColor(this)"></button>
+        <button class="postit-color-btn" style="background:#86efac" data-color="#86efac" onclick="pickColor(this)"></button>
+        <button class="postit-color-btn" style="background:#93c5fd" data-color="#93c5fd" onclick="pickColor(this)"></button>
+        <button class="postit-color-btn" style="background:#f9a8d4" data-color="#f9a8d4" onclick="pickColor(this)"></button>
+        <button class="postit-color-btn" style="background:#fca5a5" data-color="#fca5a5" onclick="pickColor(this)"></button>
+      </div>
+      <textarea id="noteText" placeholder="Notiz eingeben…" rows="3"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveNote()">Speichern</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeNoteInput()">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+  <div class="postit-grid" id="postitGrid"></div>
+</section>

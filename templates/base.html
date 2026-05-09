@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Shinra_Gate{% endblock %}</title>
+  <link rel="icon" href="{{ url_for('static', filename='assets/favicon.png') }}" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=1774568999) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='theme.css', v=1774568999) }}" id="themeSheet">
+  <script src="https://unpkg.com/htmx.org@1.9.11"></script>
+  <script src="https://unpkg.com/htmx.org/dist/ext/class-tools.js"></script>
+  {% block head %}{% endblock %}
+</head>
+<body hx-boost="true">
+<div class="app-shell" style="height: 100vh; display: flex; flex-direction: column;">
+  
+  <header class="top-nav">
+    <!-- Brand -->
+    <a href="{{ url_for('dashboard.dashboard') }}" class="nav-brand">
+      <img src="{{ url_for('static', filename='assets/favicon.png') }}" width="24" height="24" style="border-radius: 6px; display:block;" alt="Shinra_Gate">
+      Shinra_Gate
+    </a>
+
+    <!-- Navigation Links -->
+    <div class="nav-links">
+      <a href="{{ url_for('dashboard.dashboard') }}" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+        <i data-lucide="layout-dashboard" style="width: 16px;"></i> Operations
+      </a>
+      <a href="{{ url_for('vps.vpanel_page') }}" class="nav-item {% if active_page == 'vpanel' %}active{% endif %}">
+        <i data-lucide="monitor" style="width: 16px;"></i> VPanel
+      </a>
+      <a href="{{ url_for('api.services') }}" class="nav-item {% if active_page == 'services' %}active{% endif %}">
+        <i data-lucide="server" style="width: 16px;"></i> Services
+      </a>
+      <a href="{{ url_for('chat_log.chat_log') }}" class="nav-item {% if active_page == 'chat-log' %}active{% endif %}">
+        <i data-lucide="message-square" style="width: 16px;"></i> KI Logs
+      </a>
+      <a href="{{ url_for('api.grow_log_page') }}" class="nav-item {% if active_page == 'grow-log' %}active{% endif %}">
+        <i data-lucide="leaf" style="width: 16px;"></i> Growbox
+      </a>
+      {% if sidebar_n8n_project %}
+      <a href="{{ url_for('board.board', pid=sidebar_n8n_project.id) }}" class="nav-item {% if active_page == 'n8n-ai' %}active{% endif %}">
+        <i data-lucide="workflow" style="width: 16px;"></i> N8N
+      </a>
+      {% endif %}
+      <button type="button" class="nav-item" id="commandLauncher" style="background: none; border: none; cursor: pointer;">
+        <i data-lucide="terminal" style="width: 16px;"></i> Cmd (Ctrl+K)
+      </button>
+    </div>
+
+    <!-- Right Area & System Status -->
+    <div class="nav-right">
+      <form action="{{ url_for('dashboard.search') }}" method="get" style="display:flex;">
+        <input type="search" name="q" placeholder="Suchen…" value="{{ request.args.get('q', '') }}" autocomplete="off" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); padding: 4px 10px; font-size: 13px; width: 140px;">
+      </form>
+
+      <div class="nav-server-badge">
+        <span style="width:6px; height:6px; background: var(--green); border-radius:50%; box-shadow: 0 0 6px var(--green);"></span>
+        RPi5
+      </div>
+
+      <div class="nav-sysinfo">
+        <div class="nav-sys-item" title="RAM">
+          <span>RAM</span>
+          <div class="nav-bar"><span id="siRam" style="width:0%"></span></div>
+        </div>
+        <div class="nav-sys-item" title="CPU">
+          <span>CPU</span>
+          <div class="nav-bar"><span id="siCpu" style="width:0%"></span></div>
+        </div>
+      </div>
+
+      <a href="{{ url_for('auth.logout') }}" class="nav-item" style="padding-left: 8px; color: var(--red);">
+        <i data-lucide="log-out" style="width: 16px;"></i>
+      </a>
+    </div>
+  </header>
+
+  <main class="main" style="flex: 1; overflow-y: hidden; display: flex; flex-direction: column;">
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+
+<div class="command-palette-overlay" id="commandPaletteOverlay" hidden>
+  <div class="command-palette" role="dialog" aria-modal="true" aria-label="Command Palette">
+    <div class="command-palette-head">
+      <input id="commandPaletteInput" class="command-palette-input" type="search" placeholder="Springe zu Projekten, Seiten oder Aktionen…" autocomplete="off">
+    </div>
+    <div class="command-palette-list" id="commandPaletteList"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+lucide.createIcons();
+
+function _setSiBar(fillId, txtId, pct, tooltip) {
+  const f = document.getElementById(fillId);
+  const v = document.getElementById(txtId);
+  if (f) {
+    f.style.width = pct + '%';
+    f.style.background = pct > 85 ? 'var(--red)' : pct > 65 ? 'var(--amber)' : 'var(--green)';
+  }
+  if (v) {
+    v.textContent = Math.round(pct) + '%';
+    if(tooltip) v.title = tooltip;
+  }
+}
+function _loadSysinfo() {
+  fetch('{{ url_for("api.sysinfo") }}').then(r => r.json()).then(d => {
+    _setSiBar('siRam', 'siRamTxt', d.ram_pct, d.ram);
+    _setSiBar('siCpu', 'siCpuTxt', d.cpu_pct, d.cpu);
+    _setSiBar('siDisk', 'siDiskTxt', d.disk_pct, d.disk);
+  }).catch(() => {});
+}
+_loadSysinfo();
+setInterval(_loadSysinfo, 12000);
+
+const commandOverlay = document.getElementById('commandPaletteOverlay');
+const commandInput = document.getElementById('commandPaletteInput');
+const commandList = document.getElementById('commandPaletteList');
+const commandLauncher = document.getElementById('commandLauncher');
+
+function renderCommandItems(items) {
+  if (!items.length) {
+    commandList.innerHTML = '<div class="command-empty">Keine Treffer gefunden.</div>';
+    return;
+  }
+  commandList.innerHTML = items.map((item, idx) => `
+    <a class="command-item${idx === 0 ? ' active' : ''}" href="${item.url}">
+      <span class="command-item-icon">${item.icon || '•'}</span>
+      <span class="command-item-body">
+        <strong>${item.title}</strong>
+        <span>${item.subtitle || ''}</span>
+      </span>
+      <span class="command-item-type">${item.type || ''}</span>
+    </a>
+  `).join('');
+}
+
+async function loadCommandItems(query = '') {
+  try {
+    const res = await fetch(`{{ url_for("dashboard.command_palette_api") }}?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    renderCommandItems(data.items || []);
+  } catch {
+    commandList.innerHTML = '<div class="command-empty">Command Palette nicht erreichbar.</div>';
+  }
+}
+
+function openCommandPalette() {
+  commandOverlay.hidden = false;
+  loadCommandItems('');
+  setTimeout(() => commandInput.focus(), 0);
+}
+
+function closeCommandPalette() {
+  commandOverlay.hidden = true;
+  commandInput.value = '';
+}
+
+commandLauncher?.addEventListener('click', openCommandPalette);
+commandOverlay?.addEventListener('click', (e) => {
+  if (e.target === commandOverlay) closeCommandPalette();
+});
+commandInput?.addEventListener('input', (e) => loadCommandItems(e.target.value));
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openCommandPalette();
+  } else if (e.key === 'Escape' && !commandOverlay.hidden) {
+    closeCommandPalette();
+  }
+});
+</script>
+
+<div id="toast-container" style="position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column-reverse; gap:8px; pointer-events:none;"></div>
+<script>
+function showToast(msg, type) {
+  type = type || 'ok';
+  var c = document.getElementById('toast-container');
+  var t = document.createElement('div');
+  var colors = {ok:'var(--green)', err:'var(--red)', info:'var(--accent)'};
+  var col = colors[type] || colors.ok;
+  t.style.cssText = 'background:var(--surface2);border:1px solid '+col+';border-left:3px solid '+col+';border-radius:8px;padding:10px 16px;font-size:13px;color:var(--text);pointer-events:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4);transform:translateX(120px);opacity:0;transition:transform 0.25s ease,opacity 0.25s ease;max-width:280px;';
+  t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(function() { t.style.transform='translateX(0)'; t.style.opacity='1'; });
+  setTimeout(function() { t.style.opacity='0'; t.style.transform='translateX(120px)'; setTimeout(function(){ t.remove(); }, 300); }, 3000);
+}
+</script>
+</body>
+</html>

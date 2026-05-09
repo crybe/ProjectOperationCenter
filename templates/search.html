@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Suche – DevHub{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div>
+    <div class="eyebrow">Globale Suche</div>
+    <span class="topbar-title">{% if q %}Ergebnisse für „{{ q }}"{% else %}Suche{% endif %}</span>
+  </div>
+</div>
+<div class="content page-scroll">
+  <div class="dashboard-wrap">
+    <form action="{{ url_for('dashboard.search') }}" method="get" class="search-form-big">
+      <input class="form-control search-input-big" type="search" name="q"
+             value="{{ q }}" placeholder="Projekte, Tasks, Changelog, Notizen…"
+             autofocus autocomplete="off">
+      <button type="submit" class="btn btn-primary">Suchen</button>
+    </form>
+
+    {% if q %}
+    <div class="search-results">
+      {% if results %}
+        {% for r in results %}
+        <a href="{{ r.url }}" class="search-result-card">
+          <span class="search-result-icon">{{ r.icon }}</span>
+          <div class="search-result-body">
+            <div class="search-result-title">{{ r.title }}</div>
+            {% if r.subtitle %}<div class="search-result-sub">{{ r.subtitle }}</div>{% endif %}
+          </div>
+          <span class="search-result-type">{{ r.type }}</span>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-panel"><div class="empty-title">Keine Ergebnisse für „{{ q }}".</div></div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

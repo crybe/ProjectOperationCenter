@@ -1,0 +1,32 @@
+<article class="surface-panel spotlight-card">
+  <div class="panel-head panel-head-tight">
+    <div>
+      <div class="section-title">{{ panel.title }}</div>
+      <h2>{{ panel.description }}</h2>
+    </div>
+  </div>
+  <div class="spotlight-list">
+    {% for p in dashboard_summary.spotlight_projects %}
+    <a href="{{ url_for('board.board', pid=p.id) }}" class="spotlight-item">
+      <div class="spotlight-main">
+        <span class="sidebar-project-dot dot-{{ p.status }}"></span>
+        <div class="spotlight-copy">
+          <strong>{{ p.name }}</strong>
+          <span>Status: {{ p.status }} · zuletzt {{ p.updated or 'unbekannt' }}</span>
+        </div>
+      </div>
+      <span class="spotlight-count">{{ p.tasks|length }} Tasks</span>
+    </a>
+    {% else %}
+    <div class="spotlight-item">
+      <div class="spotlight-main">
+        <div class="spotlight-copy">
+          <strong>Keine aktiven Projekte</strong>
+          <span>Lege ein neues Projekt an, damit hier Fokus-Streams erscheinen.</span>
+        </div>
+      </div>
+      <span class="spotlight-count">leer</span>
+    </div>
+    {% endfor %}
+  </div>
+</article>

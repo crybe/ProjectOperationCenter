@@ -1,0 +1,500 @@
+{% extends "base.html" %}
+{% block title %}Inventar – DevHub{% endblock %}
+
+{% block content %}
+<style>
+/* Premium Inventory Variables & Micro-Animations */
+:root {
+  --glow-green: rgba(63, 185, 80, 0.15);
+  --glow-sand: rgba(210, 153, 34, 0.15);
+  --glass-bg: rgba(28, 35, 51, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.05);
+}
+
+.inv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 32px;
+}
+
+.inv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.inv-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.inv-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  border-color: var(--accent);
+}
+
+.inv-card.status-warning {
+  border-color: rgba(210, 153, 34, 0.4);
+}
+.inv-card.status-warning:hover {
+  border-color: var(--amber);
+  box-shadow: 0 8px 30px var(--glow-sand);
+}
+
+.inv-card-bg-glow {
+  position: absolute;
+  top: -50%; right: -50%;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, var(--glow-green) 0%, transparent 70%);
+  opacity: 0.5;
+  pointer-events: none;
+  border-radius: 50%;
+}
+.inv-card.status-warning .inv-card-bg-glow {
+  background: radial-gradient(circle, var(--glow-sand) 0%, transparent 70%);
+}
+
+.inv-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  z-index: 1;
+}
+
+.inv-type {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.inv-status-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(63, 185, 80, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(63, 185, 80, 0.2);
+}
+.inv-card.status-warning .inv-status-chip {
+  background: rgba(210, 153, 34, 0.1);
+  color: var(--amber);
+  border-color: rgba(210, 153, 34, 0.2);
+}
+
+.inv-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 20px;
+  z-index: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inv-amount-wrapper {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 12px;
+  z-index: 1;
+}
+.inv-amount {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  letter-spacing: -1px;
+}
+.inv-unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.inv-progress-container {
+  margin-bottom: 24px;
+  z-index: 1;
+}
+.inv-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.inv-progress-track {
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.inv-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2ea043, #3fb950);
+  border-radius: 3px;
+  transition: width 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.inv-card.status-warning .inv-progress-fill {
+  background: linear-gradient(90deg, #b07d1b, #d29922);
+}
+
+.inv-actions {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 1;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.inv-input {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 12px;
+  width: 90px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  font-weight: 500;
+}
+.inv-input:focus {
+  border-color: var(--accent);
+}
+
+.inv-btn {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+  text-align: center;
+}
+.inv-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.inv-icon-btn {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  font-size: 16px;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.inv-icon-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.05);
+}
+.inv-icon-btn.danger:hover {
+  color: var(--red);
+  background: rgba(248, 81, 73, 0.1);
+}
+
+/* Glassmorphism Modals */
+.modal-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 24px 48px rgba(0,0,0,0.5);
+  border-radius: 16px;
+}
+.modal-glass .form-control {
+  background: rgba(0,0,0,0.2);
+}
+</style>
+
+<div class="topbar topbar-page">
+  <div class="page-heading">
+    <div class="eyebrow">Ressourcen</div>
+    <span class="topbar-title">Inventar & Verschleiß</span>
+    <span class="page-subline">Intelligente Bestandsüberwachung für Growbox und Systeme.</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn btn-primary" onclick="openAddModal()">
+      <span style="font-size: 16px; margin-right: 4px;">+</span> Neues Item
+    </button>
+  </div>
+</div>
+
+<div class="content page-scroll">
+  <div class="dashboard-wrap">
+    
+    <div class="inv-grid">
+      {% for item in inventory %}
+      {% set is_warning = item.current_amount <= item.warning_threshold %}
+      
+      <article class="inv-card {% if is_warning %}status-warning{% endif %}" id="card-{{ item.id }}">
+        <div class="inv-card-bg-glow"></div>
+        
+        <div class="inv-topline">
+          <span class="inv-type">{{ item.type }}</span>
+          {% if is_warning %}
+          <span class="inv-status-chip">Kritisch</span>
+          {% else %}
+          <span class="inv-status-chip">OK</span>
+          {% endif %}
+        </div>
+        
+        <h3 class="inv-title" title="{{ item.name }}">{{ item.name }}</h3>
+        
+        <div class="inv-amount-wrapper">
+          <span class="inv-amount">{{ item.current_amount }}</span>
+          <span class="inv-unit">{{ item.unit }}</span>
+        </div>
+        
+        <div class="inv-progress-container">
+          {% set pct = 0 %}
+          {% if item.max_amount > 0 %}
+            {% set raw_pct = (item.current_amount / item.max_amount * 100) %}
+            {% set pct = raw_pct if raw_pct <= 100 else 100 %}
+          {% endif %}
+          
+          <div class="inv-progress-meta">
+            <span>Restmenge</span>
+            {% if item.max_amount > 0 %}
+            <span>{{ pct|round|int }}% (Max: {{ item.max_amount }})</span>
+            {% else %}
+            <span>Warnung bei < {{ item.warning_threshold }}</span>
+            {% endif %}
+          </div>
+          
+          {% if item.max_amount > 0 %}
+          <div class="inv-progress-track">
+            <div class="inv-progress-fill" style="width: 0%" data-target="{{ pct }}%"></div>
+          </div>
+          {% else %}
+           <div class="inv-progress-track" style="opacity: 0.3">
+            <div class="inv-progress-fill" style="width: 100%; background: var(--muted)"></div>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="inv-actions">
+          <input type="number" id="consume-{{ item.id }}" class="inv-input" value="0" min="0" step="any" placeholder="Menge">
+          <button class="inv-btn" onclick="consumeItem('{{ item.id }}')">Abziehen</button>
+          
+          <button class="inv-icon-btn" onclick="openEditModal('{{ item.id }}', '{{ item.name }}', {{ item.current_amount }}, {{ item.warning_threshold }}, {{ item.max_amount }})" title="Bearbeiten">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          </button>
+          <button class="inv-icon-btn danger" onclick="deleteItem('{{ item.id }}')" title="Löschen">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+      
+    {% if not inventory %}
+    <div class="empty-panel" style="margin-top: 40px; border: 1px dashed var(--border); border-radius: 12px;">
+      <div class="empty-title">Das Inventar ist noch leer.</div>
+      <p style="color:var(--muted); margin-bottom: 20px;">Lege dein erstes Equipment oder Dünger an, um intelligente Warnungen zu erhalten.</p>
+      <button class="btn btn-primary" onclick="openAddModal()">Erstes Item anlegen</button>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<!-- Modal: Hinzufügen -->
+<div id="addModal" class="modal-overlay" hidden>
+  <div class="modal modal-glass">
+    <div class="modal-header" style="border-color: var(--glass-border)">
+      <div class="modal-title">Neues Inventar-Item</div>
+      <button class="modal-close" onclick="closeModal('addModal')">×</button>
+    </div>
+    <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+      
+      <div>
+        <label class="form-label">Name</label>
+        <input type="text" id="addName" class="form-control" placeholder="z.B. BioBizz Grow" autocomplete="off">
+      </div>
+      
+      <div>
+        <label class="form-label">Kategorie</label>
+        <select id="addType" class="form-control">
+           <option value="Dünger">🌿 Dünger & Nährstoffe</option>
+           <option value="Hardware">⚙️ Hardware (Filter, Pumpen)</option>
+           <option value="Substrat">🪴 Erde & Substrat</option>
+           <option value="Sonstiges">📦 Sonstiges</option>
+        </select>
+      </div>
+
+      <div style="display:flex; gap:16px">
+        <div style="flex:1">
+          <label class="form-label">Aktueller Bestand</label>
+          <input type="number" id="addCurrent" class="form-control" value="0" step="any">
+        </div>
+        <div style="flex:1">
+          <label class="form-label">Einheit</label>
+          <input type="text" id="addUnit" class="form-control" placeholder="ml, Liter, Stunden">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:16px">
+        <div style="flex:1">
+           <label class="form-label">Warn-Schwelle</label>
+           <input type="number" id="addWarn" class="form-control" value="0" step="any">
+        </div>
+        <div style="flex:1">
+           <label class="form-label">Max. Kapazität</label>
+           <input type="number" id="addMax" class="form-control" value="0" step="any">
+           <div class="form-hint">Für die % Anzeige</div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer" style="border-color: var(--glass-border)">
+      <button class="btn btn-ghost" onclick="closeModal('addModal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="submitAdd()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Bearbeiten -->
+<div id="editModal" class="modal-overlay" hidden>
+  <div class="modal modal-glass">
+    <div class="modal-header" style="border-color: var(--glass-border)">
+      <div class="modal-title" id="editModalTitle">Item bearbeiten</div>
+      <button class="modal-close" onclick="closeModal('editModal')">×</button>
+    </div>
+    <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+      <input type="hidden" id="editId">
+      
+      <div>
+         <label class="form-label">Aktueller Bestand</label>
+         <input type="number" id="editCurrent" class="form-control" step="any">
+      </div>
+      <div>
+         <label class="form-label">Warn-Schwelle</label>
+         <input type="number" id="editWarn" class="form-control" step="any">
+      </div>
+      <div>
+         <label class="form-label">Max. Kapazität</label>
+         <input type="number" id="editMax" class="form-control" step="any">
+      </div>
+
+    </div>
+    <div class="modal-footer" style="border-color: var(--glass-border)">
+      <button class="btn btn-ghost" onclick="closeModal('editModal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="submitEdit()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Animate progress bars on load
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    document.querySelectorAll('.inv-progress-fill').forEach(bar => {
+      bar.style.width = bar.getAttribute('data-target') || '0%';
+    });
+  }, 100);
+});
+
+function openAddModal() { 
+  document.getElementById('addModal').classList.add('open'); 
+  document.getElementById('addName').focus();
+}
+function closeModal(id) { 
+  document.getElementById(id).classList.remove('open'); 
+}
+
+function openEditModal(id, name, current, warn, max) {
+    document.getElementById('editId').value = id;
+    document.getElementById('editModalTitle').innerText = name + ' bearbeiten';
+    document.getElementById('editCurrent').value = current;
+    document.getElementById('editWarn').value = warn;
+    document.getElementById('editMax').value = max;
+    document.getElementById('editModal').classList.add('open');
+}
+
+async function fetchJson(url, options) {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(options)
+    });
+    return res.json();
+}
+
+async function submitAdd() {
+    const data = {
+        name: document.getElementById('addName').value,
+        type: document.getElementById('addType').value,
+        current_amount: parseFloat(document.getElementById('addCurrent').value || 0),
+        unit: document.getElementById('addUnit').value || 'Stk',
+        warning_threshold: parseFloat(document.getElementById('addWarn').value || 0),
+        max_amount: parseFloat(document.getElementById('addMax').value || 0)
+    };
+    if(!data.name) return;
+    await fetchJson('/api/inventory/add', data);
+    location.reload();
+}
+
+async function submitEdit() {
+    const id = document.getElementById('editId').value;
+    const data = {
+        current_amount: parseFloat(document.getElementById('editCurrent').value || 0),
+        warning_threshold: parseFloat(document.getElementById('editWarn').value || 0),
+        max_amount: parseFloat(document.getElementById('editMax').value || 0)
+    };
+    await fetchJson(`/api/inventory/${id}/update`, data);
+    location.reload();
+}
+
+async function deleteItem(id) {
+    if(confirm('Möchtest du dieses Item wirklich komplett aus dem Inventar entfernen?')) {
+        const card = document.getElementById('card-' + id);
+        card.style.transform = 'scale(0.9)';
+        card.style.opacity = '0';
+        await fetchJson(`/api/inventory/${id}/delete`, {});
+        setTimeout(() => location.reload(), 200);
+    }
+}
+
+async function consumeItem(id) {
+    const input = document.getElementById('consume-' + id);
+    const amount = parseFloat(input.value || 0);
+    if(amount <= 0) return;
+    
+    // Optisches Feedback an Start
+    const card = document.getElementById('card-' + id);
+    card.style.transform = 'scale(0.98)';
+    
+    await fetchJson(`/api/inventory/${id}/consume`, {amount: amount});
+    
+    setTimeout(() => {
+        card.style.transform = '';
+        location.reload();
+    }, 150);
+}
+</script>
+{% endblock %}

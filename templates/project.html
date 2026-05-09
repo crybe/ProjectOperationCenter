@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('dashboard.index') }}" class="back-link">← Alle Projekte</a>
+
+<div class="project-header">
+  <div class="project-header-left">
+    <h1>{{ project.name }}</h1>
+    <div class="meta">
+      <span class="badge badge-{{ project.status }}">{{ project.status }}</span>
+      <span>Erstellt: {{ project.created }}</span>
+      <span>Aktualisiert: {{ project.updated }}</span>
+      {% for tag in project.tags %}<span class="tag">{{ tag }}</span>{% endfor %}
+    </div>
+  </div>
+  <div class="project-header-actions">
+    <a href="{{ url_for('board.project_edit', pid=project.id) }}" class="btn btn-secondary btn-sm">Bearbeiten</a>
+  </div>
+</div>
+
+{% if project.description %}
+<div class="card" style="margin-bottom:20px; color:#c0c0c0;">{{ project.description }}</div>
+{% endif %}
+
+<div class="info-row" style="margin-bottom:20px;">
+  {% if project.server_path %}
+  <div class="info-item">
+    <span class="info-label">Server-Pfad</span>
+    <span class="info-value">{{ project.server_path }}</span>
+  </div>
+  {% endif %}
+  {% if project.git_repo %}
+  <div class="info-item">
+    <span class="info-label">Git-Repo</span>
+    <span class="info-value">{{ project.git_repo }}</span>
+  </div>
+  {% endif %}
+</div>
+
+<div class="detail-grid">
+
+  <!-- ── Links / Code Reviews ── -->
+  <div>
+    {% if project.git_repo %}
+    <div class="section-title">Code Reviews / Git-History</div>
+    {% if git_error %}
+      <div class="git-error card">{{ git_error }}</div>
+    {% elif commits %}
+    <div class="commit-list">
+      {% for c in commits %}
+      <div class="commit-item" onclick="loadDiff('{{ project.id }}', '{{ c.hash }}', '{{ c.message|e }}')">
+        <span class="commit-hash">{{ c.short }}</span>
+        <span class="commit-msg">{{ c.message }}</span>
+        <span class="commit-meta">{{ c.relative }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <div class="git-error card">Keine Commits gefunden.</div>
+    {% endif %}
+    {% else %}
+    <div class="section-title">Code Reviews</div>
+    <div class="git-error card">
+      Kein Git-Repo konfiguriert.<br>
+      <a href="{{ url_for('board.project_edit', pid=project.id) }}" style="color:var(--accent)">→ Jetzt eintragen</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Changelog ── -->
+  <div id="changelog">
+    <div class="section-title">Changelog</div>
+
+    <div class="changelog-form">
+      <form method="post" action="{{ url_for('board.changelog_add', pid=project.id) }}">
+        <div class="row" style="display:flex;gap:8px;margin-bottom:8px;">
+          <input class="form-control" type="text" name="version" placeholder="Version (z.B. v1.2)" style="flex:1;margin:0;">
+        </div>
+        <textarea class="form-control" name="changes" rows="3" placeholder="Was wurde geändert?" style="margin-bottom:8px;"></textarea>
+        <button type="submit" class="btn btn-primary btn-sm">Eintrag hinzufügen</button>
+      </form>
+    </div>
+
+    {% if project.changelog %}
+    {% for entry in project.changelog %}
+    <div class="changelog-entry">
+      <div class="changelog-entry-header">
+        <span class="changelog-entry-date">{{ entry.date }}</span>
+        {% if entry.version %}<span class="changelog-entry-version">{{ entry.version }}</span>{% endif %}
+      </div>
+      <div class="changelog-entry-text">{{ entry.changes }}</div>
+      <form method="post" action="{{ url_for('board.changelog_delete', pid=project.id, idx=loop.index0) }}" style="display:inline">
+        <button type="submit" class="changelog-entry-del" title="Löschen">✕</button>
+      </form>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p style="color:var(--muted);font-size:14px;">Noch kein Changelog-Eintrag.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ── Diff Modal ── -->
+<div class="modal-overlay" id="diffModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="diffTitle">Diff</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="diff-output" id="diffOutput">
+        <span class="line line-ctx">Lade...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const projectId = "{{ project.id }}";
+
+function loadDiff(pid, hash, msg) {
+  document.getElementById('diffTitle').textContent = hash.slice(0,7) + ' – ' + msg;
+  document.getElementById('diffOutput').innerHTML = '<span class="line line-ctx">Lade...</span>';
+  document.getElementById('diffModal').classList.add('open');
+
+  fetch(`/project/${pid}/diff/${hash}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('diffOutput').innerHTML =
+          `<span class="line line-del">${data.error}</span>`;
+        return;
+      }
+      renderDiff(data.diff);
+    })
+    .catch(e => {
+      document.getElementById('diffOutput').innerHTML =
+        `<span class="line line-del">Fehler: ${e}</span>`;
+    });
+}
+
+function renderDiff(raw) {
+  const lines = raw.split('\n');
+  const out = lines.map(line => {
+    const esc = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (line.startsWith('+++') || line.startsWith('---')) return `<span class="line line-header">${esc}</span>`;
+    if (line.startsWith('@@'))  return `<span class="line line-meta">${esc}</span>`;
+    if (line.startsWith('+'))   return `<span class="line line-add">${esc}</span>`;
+    if (line.startsWith('-'))   return `<span class="line line-del">${esc}</span>`;
+    if (line.startsWith('diff') || line.startsWith('index') || line.startsWith('commit') || line.startsWith('Author') || line.startsWith('Date'))
+      return `<span class="line line-header">${esc}</span>`;
+    return `<span class="line line-ctx">${esc}</span>`;
+  }).join('');
+  document.getElementById('diffOutput').innerHTML = out;
+}
+
+function closeModal() {
+  document.getElementById('diffModal').classList.remove('open');
+}
+
+document.getElementById('diffModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+});
+</script>
+{% endblock %}

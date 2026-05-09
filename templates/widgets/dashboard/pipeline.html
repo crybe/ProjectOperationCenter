@@ -1,0 +1,19 @@
+<section style="margin-top:32px;">
+  <div class="section-header-row">
+    <div class="section-title">{{ panel.title }}</div>
+    <a href="{{ url_for('board.project_new') }}" class="btn btn-secondary btn-sm">+ Neu</a>
+  </div>
+  <div class="project-grid">
+    {% for p in sidebar_projects if p.status != 'archived' %}
+    <a href="{{ url_for('board.board', pid=p.id) }}" class="project-card-mini">
+      <div class="p-card-head">
+        <span class="sidebar-project-dot dot-{{ p.status }}"></span>
+        <span class="p-card-title">{{ p.name }}</span>
+      </div>
+      <div class="p-card-meta">
+        {{ p.tasks|length }} Tasks · {{ p.updated }}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>

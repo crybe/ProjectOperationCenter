@@ -1,0 +1,65 @@
+<div class="login-card" id="loginCard">
+  <div class="card-bg-mascot" id="mascotBg"></div>
+  
+  <!-- Lifestream Overlay -->
+  <div id="lifestreamGlow" style="position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.5s;"></div>
+
+  <div class="card-content">
+    <div class="card-header">
+      <div class="card-header-title">Identifikation</div>
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        G.A.T.E. ACTIVE
+      </div>
+    </div>
+
+    <!-- Ticker Placeholder -->
+    <div style="background: rgba(16, 185, 129, 0.05); border-left: 2px solid rgba(16, 185, 129, 0.4); padding: 8px 16px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
+       <p id="tickerText" style="font-family: 'JetBrains Mono', monospace; font-size: 8px; color: #38bd94; text-transform: uppercase; letter-spacing: 0.2em; margin: 0;">
+         G.A.T.E. Security Node Active // Monitoring Neural Pathways...
+       </p>
+    </div>
+
+    {% if error %}
+    <div id="errorMessage" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 12px; border-radius: 10px; font-size: 0.8rem; margin-bottom: 20px; text-align: center;">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('auth.login') }}" id="loginForm">
+      <div class="field-group">
+        <label class="field-label" for="username">Operator_ID</label>
+        <input type="text" name="username" id="username" class="field-input"
+               placeholder="ID eingeben..." autocomplete="username" autofocus required>
+      </div>
+
+      <div class="field-group">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <label class="field-label" for="password" style="margin-bottom: 0;">Neural_Key</label>
+          <button type="button" id="togglePassword" style="background: none; border: none; color: #1e3a2f; cursor: pointer; padding: 0 4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <input type="password" name="password" id="password" class="field-input"
+               placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 24px;">
+        {% if manual_logout %}
+        <a href="{{ url_for('auth.login', reauth=1) }}" class="login-btn" style="text-decoration: none; text-align: center; background: rgba(56, 189, 148, 0.1); color: var(--emerald); border: 1px solid var(--emerald);">
+          SSO RE-AUTHENTICATE
+        </a>
+        {% endif %}
+
+        <button type="submit" class="login-btn" id="loginBtn">
+          Lebensstrom initialisieren
+        </button>
+
+        <button type="button" id="neuralScanBtn" class="field-input" style="display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.2em; color: #1e3a2f; border-color: rgba(56, 189, 148, 0.1);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/><path d="M7 21h10"/><path d="M12 21v-2"/></svg>
+          Neural Scan
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

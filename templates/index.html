@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Projekte{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Meine Projekte</h1>
+  <a href="{{ url_for('project_new') }}" class="btn btn-primary">+ Neues Projekt</a>
+</div>
+
+<div class="stats-bar">
+  <a href="{{ url_for('index') }}" class="stat-chip {% if not status_filter %}active{% endif %}">
+    Alle <b>{{ all_projects|length }}</b>
+  </a>
+  {% for s in statuses %}
+  <a href="{{ url_for('index', status=s, q=search) }}" class="stat-chip {% if status_filter == s %}active{% endif %}">
+    {{ s|capitalize }} <b>{{ counts[s] }}</b>
+  </a>
+  {% endfor %}
+</div>
+
+<form class="search-row" method="get" action="{{ url_for('index') }}">
+  {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+  <input type="text" name="q" placeholder="Projekte durchsuchen..." value="{{ search }}" autocomplete="off">
+  {% if search %}
+  <a href="{{ url_for('index', status=status_filter) }}" class="btn btn-secondary">✕ Zurücksetzen</a>
+  {% endif %}
+</form>
+
+{% if projects %}
+<div class="projects-grid">
+  {% for p in projects %}
+  <a href="{{ url_for('project_detail', project_id=p.id) }}" class="project-card">
+    <div class="project-card-header">
+      <span class="project-card-name">{{ p.name }}</span>
+      <span class="badge badge-{{ p.status }}">{{ p.status }}</span>
+    </div>
+    {% if p.description %}
+    <p class="project-card-desc">{{ p.description[:120] }}{% if p.description|length > 120 %}…{% endif %}</p>
+    {% endif %}
+    {% if p.tags %}
+    <div class="project-card-tags">
+      {% for tag in p.tags %}<span class="tag">{{ tag }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="project-card-footer">
+      <span class="project-card-path">{% if p.server_path %}{{ p.server_path }}{% endif %}</span>
+      <span class="project-card-date">{{ p.updated }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <p>Keine Projekte gefunden.</p>
+  {% if not search and not status_filter %}
+  <a href="{{ url_for('project_new') }}" class="btn btn-primary">Erstes Projekt anlegen</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

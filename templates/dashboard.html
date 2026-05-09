@@ -1,0 +1,593 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – DevHub{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .grow-chart-container { height: 180px; margin-top: 16px; position: relative; }
+  .postit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .postit {
+    border-radius: 4px 4px 4px 16px; padding: 14px 14px 10px;
+    position: relative; min-height: 100px;
+    box-shadow: 2px 3px 12px rgba(0,0,0,0.35), inset 0 -3px 0 rgba(0,0,0,0.12);
+    transform: rotate(var(--rot, 0deg));
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: default;
+  }
+  .postit:hover { transform: rotate(0deg) scale(1.03); box-shadow: 4px 6px 20px rgba(0,0,0,0.45); z-index: 2; }
+  .postit-text { font-size: 13px; line-height: 1.55; color: #1a1a1a; white-space: pre-wrap; word-break: break-word; }
+  .postit-meta { font-size: 10px; color: rgba(0,0,0,0.45); margin-top: 10px; }
+  .postit-del {
+    position: absolute; top: 6px; right: 8px;
+    background: none; border: none; cursor: pointer;
+    color: rgba(0,0,0,0.3); font-size: 16px; line-height: 1;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .postit:hover .postit-del { opacity: 1; }
+  .postit-new {
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px; max-width: 360px;
+  }
+  .postit-new textarea {
+    width: 100%; background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); padding: 10px 12px;
+    font-size: 13px; resize: vertical; outline: none; font-family: inherit;
+    box-sizing: border-box;
+  }
+  .postit-colors { display: flex; gap: 8px; margin-bottom: 10px; }
+  .postit-color-btn {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent;
+    cursor: pointer; transition: transform 0.15s;
+  }
+  .postit-color-btn.active { border-color: white; transform: scale(1.2); }
+  .postit-empty { color: var(--muted); font-size: 13px; padding: 16px 0; }
+
+  .backup-inline {
+    display: flex; gap: 28px; flex-wrap: wrap;
+    margin-top: 14px; align-items: center;
+  }
+  .backup-stat { display: flex; flex-direction: column; gap: 2px; }
+  .backup-stat-val { font-size: 20px; font-weight: 700; color: var(--text); line-height:1; }
+  .backup-stat-lab { font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.05em; font-weight: 600; }
+  .backup-err { color: var(--red, #f87171); }
+  .backup-ok  { color: #4ade80; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div class="page-heading">
+    <div class="eyebrow">Operations</div>
+    <span class="topbar-title">Control Center</span>
+  </div>
+  <div class="topbar-actions">
+    <a href="{{ url_for('board.project_new') }}" class="btn btn-primary">+ Neues Projekt</a>
+  </div>
+</div>
+
+<div class="content page-scroll">
+<div class="dashboard-wrap">
+
+  <!-- ── Zeile 1: Health & Quick Stats ── -->
+  <div class="dash-row">
+
+    <!-- System Health -->
+    <article class="surface-panel health-card" id="healthHostCard">
+      <div class="panel-head panel-head-tight">
+        <div>
+          <div class="section-title">Host System</div>
+          <h2 id="healthSummary">Prüfe…</h2>
+        </div>
+        <div class="status-indicator"></div>
+      </div>
+      <div class="health-body">
+        <div class="health-main-stat">RPi5</div>
+        <div class="health-meta">Ubuntu Server · localhost</div>
+      </div>
+      <div class="metric-footer">
+        <a href="{{ url_for('api.services') }}" class="metric-link">Dienste verwalten →</a>
+      </div>
+    </article>
+
+    <!-- Project Stats -->
+    <article class="surface-panel stats-panel">
+      <div class="panel-head panel-head-tight">
+        <div><div class="section-title">Aufgaben</div><h2>Übersicht</h2></div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-val" id="stat-total">{{ total_tasks }}</div>
+          <div class="stat-lab">Gesamt</div>
+        </div>
+        <div class="stat-item stat-warn">
+          <div class="stat-val" id="stat-open">{{ open_tasks }}</div>
+          <div class="stat-lab">Offen</div>
+        </div>
+        <div class="stat-item stat-accent">
+          <div class="stat-val" id="stat-inprogress">{{ inprogress_tasks }}</div>
+          <div class="stat-lab">Aktiv</div>
+        </div>
+        <div class="stat-item stat-ok">
+          <div class="stat-val" id="stat-done">{{ done_tasks }}</div>
+          <div class="stat-lab">Erledigt</div>
+        </div>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- ── Backup & Disk Status ── -->
+  <div class="dash-row" style="margin-bottom:0;">
+    <article class="surface-panel" style="flex:1;">
+      <div class="panel-head panel-head-tight">
+        <div>
+          <div class="section-title">Server Backup</div>
+          <h2 id="backupTitle">wird geladen…</h2>
+        </div>
+        <span style="font-size:22px;line-height:1;">🗄</span>
+      </div>
+      <div class="backup-inline" id="backupStats"></div>
+      <div class="metric-footer" style="margin-top:12px;">
+        <span id="backupFooter" style="color:var(--muted);font-size:12px;">–</span>
+      </div>
+    </article>
+  </div>
+
+  <!-- ── Zeile 2: Grow & Activity ── -->
+  <div class="dash-grid-2col">
+
+    <!-- Grow Box Live (erweitert) -->
+    <article class="surface-panel insight-panel" id="growPanel">
+      <!-- Header: Sorte + Stage + Live-Dot -->
+      <div class="panel-head panel-head-tight">
+        <div>
+          <div class="section-title" id="growStageBadge">Growbox Live</div>
+          <h2 id="growSorte" style="font-size:18px;">Laden…</h2>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="growPowerBadge" style="font-size:12px;color:var(--muted);display:none;"></span>
+          <div class="status-indicator-live"></div>
+        </div>
+      </div>
+
+      <!-- Ernte-Countdown -->
+      <div id="growErnte" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(141,255,177,0.06);border:1px solid rgba(141,255,177,0.15);border-radius:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);">Ernte in</span>
+          <span id="growErnteLabel" style="font-size:22px;font-weight:700;color:var(--text);">–</span>
+        </div>
+        <div style="height:5px;background:rgba(255,255,255,0.07);border-radius:99px;overflow:hidden;">
+          <div id="growBlueteBar" style="height:100%;background:linear-gradient(90deg,var(--accent),rgba(141,255,177,0.5));border-radius:99px;width:0%;transition:width 0.8s ease;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;">
+          <span id="growBlueteLabel" style="font-size:11px;color:var(--muted);">Blüte Tag – / –</span>
+          <span id="growDayLabel" style="font-size:11px;color:var(--muted);">G-Tag –</span>
+        </div>
+      </div>
+
+      <!-- Sensoren: Temp / RH / VPD mit Zielbereich-Ampeln -->
+      <div class="grow-stats-row">
+        <div class="grow-stat">
+          <span class="grow-lab">Temperatur <span id="growTempRange" style="font-size:9px;opacity:.6;"></span></span>
+          <span class="grow-val" id="growTemp" style="transition:color .4s;">–</span>
+          <span id="growTempMinMax" style="font-size:10px;color:var(--muted);margin-top:2px;"></span>
+        </div>
+        <div class="grow-stat">
+          <span class="grow-lab">Feuchtigkeit <span id="growHumRange" style="font-size:9px;opacity:.6;"></span></span>
+          <span class="grow-val" id="growHumidity" style="transition:color .4s;">–</span>
+          <span id="growHumMinMax" style="font-size:10px;color:var(--muted);margin-top:2px;"></span>
+        </div>
+        <div class="grow-stat">
+          <span class="grow-lab">VPD <span id="growVpdRange" style="font-size:9px;opacity:.6;"></span></span>
+          <span class="grow-val" id="growVpd" style="transition:color .4s;">–</span>
+        </div>
+      </div>
+
+      <!-- Meta: Lampe / Lüfter / Licht -->
+      <div class="grow-meta-row">
+        <span id="growLampLevel">Lampe: –</span>
+        <span id="growFanMeta">Lüfter: –</span>
+        <span id="growLightMeta" style="color:var(--muted);"></span>
+      </div>
+
+      <div class="metric-footer" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span id="growWaterBadge" style="display:none;font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600;"></span>
+        <span id="growWateringInfo" style="font-size:12px;color:var(--muted);">Bewässerung wird geladen…</span>
+      </div>
+
+      <div class="grow-chart-container">
+        <canvas id="growChart"></canvas>
+      </div>
+    </article>
+
+    <!-- Activity Stream -->
+    <article class="surface-panel insight-panel">
+      <div class="panel-head panel-head-tight">
+        <div><div class="section-title">Aktivität</div><h2>Letzte Ereignisse</h2></div>
+      </div>
+      <div class="activity-feed" id="activityFeed">
+        <div class="activity-loading">Lade Ereignisse…</div>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- ── Zeile 3: Schnell-Notizen ── -->
+  <section style="margin-top:32px;">
+    <div class="section-header-row">
+      <div class="section-title">Schnell-Notizen</div>
+      <button class="btn btn-secondary btn-sm" id="noteAddBtn" onclick="openNoteInput()">+ Notiz</button>
+    </div>
+    <div id="noteInputWrap" style="display:none; margin-bottom:16px;">
+      <div class="postit-new">
+        <div class="postit-colors">
+          <button class="postit-color-btn active" style="background:#fef08a" data-color="#fef08a" onclick="pickColor(this)"></button>
+          <button class="postit-color-btn" style="background:#86efac" data-color="#86efac" onclick="pickColor(this)"></button>
+          <button class="postit-color-btn" style="background:#93c5fd" data-color="#93c5fd" onclick="pickColor(this)"></button>
+          <button class="postit-color-btn" style="background:#f9a8d4" data-color="#f9a8d4" onclick="pickColor(this)"></button>
+          <button class="postit-color-btn" style="background:#fca5a5" data-color="#fca5a5" onclick="pickColor(this)"></button>
+        </div>
+        <textarea id="noteText" placeholder="Notiz eingeben…" rows="3"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-primary btn-sm" onclick="saveNote()">Speichern</button>
+          <button class="btn btn-secondary btn-sm" onclick="closeNoteInput()">Abbrechen</button>
+        </div>
+      </div>
+    </div>
+    <div class="postit-grid" id="postitGrid"></div>
+  </section>
+
+  <!-- ── Zeile 4: Projekt-Grid ── -->
+  <section style="margin-top:32px;">
+    <div class="section-header-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+      <div class="section-title" style="margin:0;">Aktive Projekte</div>
+      <a href="{{ url_for('board.project_new') }}" class="btn btn-secondary btn-sm">+ Neues Projekt</a>
+    </div>
+    
+    <div class="launchpad-grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+      {% for p in sidebar_projects if p.status != 'archived' %}
+      <a href="{{ url_for('board.board', pid=p.id) }}" class="launchpad-card" style="min-height: 160px; text-decoration: none; display: flex; flex-direction: column;">
+        
+        <div class="launchpad-topline">
+          <div style="display:flex; align-items:center; gap: 8px;">
+            <span class="serverbar-dot dot-{{ p.status }}"></span>
+            <span class="launchpad-kicker">{{ p.status }}</span>
+          </div>
+          {% if p.tags %}
+            <span class="launchpad-badge">{{ p.tags[0] }}</span>
+          {% endif %}
+        </div>
+        
+        <h3 style="margin-top:4px;">{{ p.name }}</h3>
+        
+        <p style="flex:1;">
+          {% if p.description %}
+            {{ p.description | truncate(60) }}
+          {% else %}
+            Keine Beschreibung hinterlegt.
+          {% endif %}
+        </p>
+
+        <div class="launchpad-meta-row" style="margin-top:auto; padding-top:12px; border-top: 1px solid rgba(255,255,255,0.04);">
+          <span><i data-lucide="check-square" style="width:12px; margin-right:4px; vertical-align:text-bottom;"></i>{{ p.tasks|length }} Tasks</span>
+          <span><i data-lucide="clock" style="width:12px; margin-right:4px; vertical-align:text-bottom;"></i>{{ p.updated }}</span>
+        </div>
+        
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
+</div>
+
+<script>
+// ── Health (wird von _loadSysinfo in base.html aktualisiert) ───────────────
+function _updateHealthCard(d) {
+  const stressed = d.cpu_pct > 80 || d.ram_pct > 90;
+  document.getElementById('healthSummary').textContent = stressed ? 'Warnung' : 'Optimal';
+  const card = document.getElementById('healthHostCard');
+  card.classList.remove('health-ok', 'health-medium', 'health-danger');
+  card.classList.add(stressed ? 'health-medium' : 'health-ok');
+}
+// Wird aufgerufen sobald base.html's _loadSysinfo fertig ist
+document.addEventListener('DOMContentLoaded', function() {
+  fetch('{{ url_for("api.sysinfo") }}').then(r=>r.json()).then(_updateHealthCard).catch(()=>{});
+});
+
+// ── Activity Feed ───────────────────────────────────────────────────────────
+function loadActivity() {
+  fetch('{{ url_for("dashboard.dashboard_activity") }}').then(r=>r.json()).then(d=>{
+    const feed = document.getElementById('activityFeed');
+    if(!d.items.length) { feed.innerHTML = '<div class="activity-empty">Keine Ereignisse</div>'; return; }
+    feed.innerHTML = d.items.map(i => `
+      <a href="${i.url}" class="activity-item">
+        <div class="activity-icon-wrap"><span class="activity-type-icon">${i.icon}</span></div>
+        <div class="activity-body">
+          <div class="activity-title">${i.title}</div>
+          <div class="activity-meta"><span>${i.time_label}</span> · <span>${i.meta}</span></div>
+        </div>
+      </a>
+    `).join('');
+  });
+}
+loadActivity();
+setInterval(loadActivity, 60000);
+
+// Grow Metrics
+let growChart = null;
+const chartLabels = [];
+const tempData = [];
+const humData = [];
+
+function initGrowChart() {
+  const ctx = document.getElementById('growChart').getContext('2d');
+  growChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: chartLabels,
+      datasets: [
+        { label: 'Temp (°C)', data: tempData, borderColor: '#58a6ff', tension: 0.3, yAxisID: 'y' },
+        { label: 'Feuchte (%)', data: humData, borderColor: '#3fb950', tension: 0.3, yAxisID: 'y1' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { type: 'linear', display: true, position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#7d8590' } },
+        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#7d8590' } },
+        x: { ticks: { display: false } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function updateGrowChart(temp, hum) {
+  if (!growChart) initGrowChart();
+  const now = new Date().toLocaleTimeString('de', { hour: '2-digit', minute: '2-digit' });
+  chartLabels.push(now);
+  tempData.push(temp);
+  humData.push(hum);
+  if (chartLabels.length > 20) {
+    chartLabels.shift(); tempData.shift(); humData.shift();
+  }
+  growChart.update('none');
+}
+
+// Zielbereich-Ampel: gibt CSS-Farbe zurück
+function _ampel(val, min, max) {
+  if (val === null || val === undefined || min === null || max === null) return '';
+  if (val < min || val > max) return 'var(--red)';
+  const margin = (max - min) * 0.1;
+  if (val < min + margin || val > max - margin) return 'var(--amber)';
+  return 'var(--green)';
+}
+
+let _growExt = {};
+
+function loadGrowExtended() {
+  fetch('{{ url_for("api.grow_extended") }}').then(r=>r.json()).then(d=>{
+    _growExt = d;
+
+    // Header: Sorte + Stage
+    const sorte = document.getElementById('growSorte');
+    if (sorte) sorte.textContent = d.sorte || '–';
+    const stage = document.getElementById('growStageBadge');
+    if (stage) stage.textContent = d.grow_stage || 'Growbox Live';
+
+    // Zielbereich-Labels
+    const tr = document.getElementById('growTempRange');
+    if (tr && d.temp_ziel_min != null) tr.textContent = d.temp_ziel_min + '–' + d.temp_ziel_max + '°';
+    const hr = document.getElementById('growHumRange');
+    if (hr && d.hum_ziel_min != null) hr.textContent = d.hum_ziel_min + '–' + d.hum_ziel_max + '%';
+    const vr = document.getElementById('growVpdRange');
+    if (vr && d.vpd_opt_min != null) vr.textContent = d.vpd_opt_min + '–' + d.vpd_opt_max + ' kPa';
+
+    // 24h Min/Max
+    const tMM = document.getElementById('growTempMinMax');
+    if (tMM && d.temp_min_24h != null) tMM.textContent = '↓' + d.temp_min_24h + '  ↑' + d.temp_max_24h + ' (24h)';
+    const hMM = document.getElementById('growHumMinMax');
+    if (hMM && d.hum_min_24h != null) hMM.textContent = '↓' + d.hum_min_24h + '%  ↑' + d.hum_max_24h + '% (24h)';
+
+    // Strom-Badge
+    const pw = document.getElementById('growPowerBadge');
+    if (pw && d.power_w != null) {
+      pw.textContent = d.power_w + ' W';
+      pw.style.display = '';
+    }
+
+    // Licht-Meta
+    const lm = document.getElementById('growLightMeta');
+    if (lm && d.light_hours != null) lm.textContent = d.light_hours + 'h Licht · an ' + String(d.light_on_h).padStart(2,'0') + ':00';
+
+    // Ernte-Countdown + Blüte-Progress
+    const ernteBox = document.getElementById('growErnte');
+    if (ernteBox && d.ernte_days != null) {
+      ernteBox.style.display = '';
+      document.getElementById('growErnteLabel').textContent = d.ernte_days > 0 ? d.ernte_days + ' Tage' : 'Ernte überfällig!';
+      document.getElementById('growErnteLabel').style.color = d.ernte_days <= 7 ? 'var(--amber)' : 'var(--text)';
+      document.getElementById('growBlueteBar').style.width = (d.bluete_pct || 0) + '%';
+      document.getElementById('growBlueteLabel').textContent = 'Blüte Tag ' + (d.bluete_day || '–') + ' / ' + (d.bluete_dauer || '–');
+      document.getElementById('growDayLabel').textContent = 'G-Tag ' + (d.grow_day || '–');
+    }
+  }).catch(()=>{});
+}
+
+function loadGrowMetrics() {
+  fetch('{{ url_for("api.grow_metrics") }}').then(r=>r.json()).then(d=>{
+    // Temp mit Zielbereich-Ampel
+    const tempEl = document.getElementById('growTemp');
+    if (tempEl) {
+      tempEl.textContent = d.temperature !== null ? d.temperature.toFixed(1) + '°C' : '–';
+      tempEl.style.color = _ampel(d.temperature, _growExt.temp_ziel_min, _growExt.temp_ziel_max) || 'var(--text)';
+    }
+    const humEl = document.getElementById('growHumidity');
+    if (humEl) {
+      humEl.textContent = d.humidity !== null ? d.humidity.toFixed(1) + '%' : '–';
+      humEl.style.color = _ampel(d.humidity, _growExt.hum_ziel_min, _growExt.hum_ziel_max) || 'var(--text)';
+    }
+    if (d.temperature !== null && d.humidity !== null) {
+      updateGrowChart(d.temperature, d.humidity);
+    }
+    const vpdEl = document.getElementById('growVpd');
+    if (vpdEl) {
+      vpdEl.textContent = d.vpd !== null ? d.vpd.toFixed(2) + ' kPa' : '–';
+      vpdEl.style.color = _ampel(d.vpd, _growExt.vpd_opt_min, _growExt.vpd_opt_max) || 'var(--text)';
+    }
+    document.getElementById('growLampLevel').textContent = d.lamp_level !== null ? 'Lampe Stufe ' + d.lamp_level : 'Lampe –';
+    document.getElementById('growFanMeta').textContent = d.fan_speed !== null ? 'Lüfter ' + d.fan_speed : 'Lüfter –';
+    // Bewässerungs-Badge
+    const _wb = document.getElementById('growWaterBadge');
+    const _wi = document.getElementById('growWateringInfo');
+    const _wAlertStyles = {
+      ok:      'background:rgba(0,229,107,0.1);border:1px solid rgba(0,229,107,0.2);color:#00e56b;',
+      soon:    'background:rgba(255,200,0,0.1);border:1px solid rgba(255,200,0,0.25);color:#ffc800;',
+      due:     'background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.25);color:#ff8c00;',
+      overdue: 'background:rgba(255,80,80,0.12);border:1px solid rgba(255,80,80,0.3);color:#ff5050;',
+    };
+    if (_wb && d.watering_alert) {
+      _wb.style.cssText = _wAlertStyles[d.watering_alert] || '';
+      const _wu = d.watering_days_until;
+      let _wtxt = '💧 ';
+      if (_wu == null)      _wtxt += 'Letzte Bewässerung: ' + d.watering_days_since + 'd';
+      else if (_wu > 2)     _wtxt += 'Gießen in ~' + Math.round(_wu) + 'd';
+      else if (_wu > 0.5)   _wtxt += 'Bald gießen (~' + _wu.toFixed(1) + 'd)';
+      else if (_wu > -0.5)  _wtxt += 'Heute gießen';
+      else                  _wtxt += 'Überfällig (' + Math.abs(_wu).toFixed(1) + 'd)';
+      if (d.watering_adj_interval) _wtxt += ' · Ø ' + d.watering_adj_interval + 'd';
+      _wb.textContent = _wtxt;
+      _wb.style.display = 'inline-block';
+    }
+    if (_wi) _wi.textContent = d.last_watering
+      ? 'Gegossen: ' + d.last_watering.slice(0,10) + ' · ' + d.watering_count + '×'
+      : 'Keine Bewässerungsdaten';
+  }).catch(()=>{});
+}
+
+loadGrowExtended();
+loadGrowMetrics();
+setInterval(loadGrowMetrics, 10000);
+setInterval(loadGrowExtended, 120000);
+
+// Animierte Task-Zähler
+function _countUp(el, target, duration) {
+  if (!el) return;
+  const start = performance.now();
+  function step(now) {
+    const p = Math.min((now - start) / duration, 1);
+    el.textContent = Math.round(p * target);
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const vals = [
+    ['stat-total',      {{ total_tasks }}],
+    ['stat-open',       {{ open_tasks }}],
+    ['stat-inprogress', {{ inprogress_tasks }}],
+    ['stat-done',       {{ done_tasks }}],
+  ];
+  vals.forEach(function(pair) {
+    _countUp(document.getElementById(pair[0]), pair[1], 800);
+  });
+});
+
+// ── Schnell-Notizen ─────────────────────────────────────────────────────────
+let _noteColor = '#fef08a';
+const ROTS = [-2, -1, 0, 1, 2, -1.5, 1.5];
+
+function openNoteInput() {
+  document.getElementById('noteInputWrap').style.display = 'block';
+  document.getElementById('noteAddBtn').style.display = 'none';
+  document.getElementById('noteText').focus();
+}
+function closeNoteInput() {
+  document.getElementById('noteInputWrap').style.display = 'none';
+  document.getElementById('noteAddBtn').style.display = '';
+  document.getElementById('noteText').value = '';
+}
+function pickColor(btn) {
+  document.querySelectorAll('.postit-color-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _noteColor = btn.dataset.color;
+}
+async function saveNote() {
+  const text = document.getElementById('noteText').value.trim();
+  if (!text) return;
+  const res = await fetch('/api/notes', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text, color: _noteColor})
+  });
+  if (res.ok) { closeNoteInput(); loadNotes(); showToast('Notiz gespeichert ✓'); }
+  else showToast('Fehler beim Speichern', 'err');
+}
+async function deleteNote(id) {
+  await fetch('/api/notes/' + id, {method: 'DELETE'});
+  loadNotes();
+  showToast('Notiz gelöscht', 'info');
+}
+async function loadNotes() {
+  const grid = document.getElementById('postitGrid');
+  const notes = await fetch('/api/notes').then(r => r.json()).catch(() => []);
+  if (!notes.length) {
+    grid.innerHTML = '<p class="postit-empty">Noch keine Notizen. Klick auf "+ Notiz" um loszulegen.</p>';
+    return;
+  }
+  grid.innerHTML = notes.map((n, i) => `
+    <div class="postit" style="background:${n.color};--rot:${ROTS[i % ROTS.length]}deg">
+      <button class="postit-del" onclick="deleteNote('${n.id}')" title="Löschen">×</button>
+      <div class="postit-text">${n.text.replace(/</g,'&lt;')}</div>
+      <div class="postit-meta">${n.created_at}</div>
+    </div>
+  `).join('');
+}
+loadNotes();
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('noteInputWrap').style.display !== 'none') closeNoteInput();
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && document.activeElement.id === 'noteText') saveNote();
+});
+
+// ── Backup Status ─────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const d = await fetch('{{ url_for("api.backup_status") }}').then(r => r.json());
+    if (d.error) {
+      document.getElementById('backupTitle').textContent = 'Nicht erreichbar';
+      return;
+    }
+    document.getElementById('backupTitle').textContent =
+      d.errors === 0 ? 'Alles OK' : `${d.errors} Fehler`;
+
+    const stats = [];
+    if (d.last) stats.push({ val: d.last.slice(0, 10), lab: 'Letztes Backup' });
+    if (d.size) stats.push({ val: d.size, lab: 'Größe' });
+    if (d.count != null) stats.push({ val: d.count, lab: 'Archivierte Backups' });
+    if (d.errors != null) stats.push({
+      val: d.errors,
+      lab: 'Fehler',
+      cls: d.errors > 0 ? 'backup-err' : 'backup-ok'
+    });
+
+    document.getElementById('backupStats').innerHTML = stats.map(s =>
+      `<div class="backup-stat">
+        <span class="backup-stat-val ${s.cls || ''}">${s.val}</span>
+        <span class="backup-stat-lab">${s.lab}</span>
+      </div>`
+    ).join('');
+
+    if (d.last) {
+      const ago = Math.round((Date.now() - new Date(d.last.replace(' ', 'T')).getTime()) / 3600000);
+      document.getElementById('backupFooter').textContent =
+        ago < 24 ? `vor ${ago} Stunden` : `vor ${Math.round(ago/24)} Tagen`;
+    }
+  } catch(e) {
+    document.getElementById('backupTitle').textContent = 'Fehler beim Laden';
+  }
+})();
+
+</script>
+{% endblock %}

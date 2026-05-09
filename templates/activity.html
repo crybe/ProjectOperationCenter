@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} – System & Aktivität{% endblock %}
+
+{% block content %}
+<div class="topbar topbar-page">
+  <div class="page-heading">
+    <div class="eyebrow">Operations & Logs</div>
+    <span class="topbar-title">{{ project.name }}</span>
+  </div>
+  <div class="topbar-actions">
+    <a href="{{ url_for('board.board',            pid=project.id) }}" class="tab">⊞ Board</a>
+    <a href="{{ url_for('files.files',            pid=project.id) }}" class="tab">📁 Files</a>
+    <a href="{{ url_for('board.review',           pid=project.id) }}" class="tab">⎇ Code Review</a>
+    <a href="{{ url_for('board.project_activity', pid=project.id) }}" class="tab active">● Aktivität</a>
+    <a href="{{ url_for('board.project_edit', pid=project.id) }}" class="btn btn-secondary btn-sm" style="margin-left: 12px;">Bearbeiten</a>
+  </div>
+</div>
+
+<div class="content page-scroll">
+<div class="dashboard-wrap">
+  
+  <div class="dash-grid-2col" style="grid-template-columns: 1fr 340px; align-items: start;">
+
+    <!-- Left Col: Bot Log Terminal -->
+    <article class="surface-panel" style="padding: 0; overflow: hidden; display: flex; flex-direction: column; height: 75vh;">
+      <div class="panel-head panel-head-tight" style="padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); margin: 0; background: rgba(0,0,0,0.2);">
+        <div>
+          <h2 style="font-size: 16px;">Terminal: Ki-Bot Log</h2>
+          <div class="health-meta" id="logTs" style="margin-top: 4px;">Warte auf Stream...</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-secondary btn-sm" id="liveBtn" onclick="toggleLive()">⏸ Live</button>
+          <button class="btn btn-secondary btn-sm" onclick="scrollLogBottom()">↓ Down</button>
+        </div>
+      </div>
+      
+      <div id="logBox" style="
+        flex:1; 
+        overflow-y:auto; 
+        font-family: 'JetBrains Mono', monospace; 
+        font-size: 13px; 
+        line-height: 1.6; 
+        padding: 20px; 
+        background: #090b0e;
+      ">
+        <div style="color: var(--muted);">Establishing connection...</div>
+      </div>
+      <div style="padding: 8px 16px; background: rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.04); font-size: 11px; color: var(--muted); text-align: right; font-family: 'JetBrains Mono', monospace;">
+        <span id="logCount">0 Lines</span>
+      </div>
+    </article>
+
+    <!-- Right Col: Server Control & File Watcher -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+
+      <!-- Server Control (Moved from Review) -->
+      <article class="surface-panel insight-panel">
+        <div class="panel-head panel-head-tight">
+          <div>
+            <div class="section-title">Daemon</div>
+            <h2>Ki-Bot Service</h2>
+          </div>
+          <span id="botDot" style="width:12px;height:12px;border-radius:50%;background:var(--muted);box-shadow: 0 0 10px var(--muted);transition:background 0.4s;"></span>
+        </div>
+        
+        <div style="margin-bottom: 16px; font-size: 13px; color: var(--muted);" id="botState">Status wird abgefragt...</div>
+        
+        <div style="display:flex; flex-direction: column; gap: 10px;">
+          <button id="btnStart" class="btn btn-primary" onclick="botAction('start')" style="justify-content: center;">
+            ▶ Steuerung Starten
+          </button>
+          <div style="display:flex; gap: 10px;">
+            <button id="btnRestart" class="btn btn-secondary" onclick="botAction('restart')" style="flex: 1; justify-content: center;">Neustart</button>
+            <button id="btnStop" class="btn btn-danger" onclick="botAction('stop')" style="flex: 1; justify-content: center;">Stoppen</button>
+          </div>
+        </div>
+        
+        <div id="botMsg" style="font-size:12px;color:var(--accent);margin-top:14px; min-height: 16px;"></div>
+      </article>
+
+      <!-- 24h Activity Watcher -->
+      <article class="surface-panel insight-panel">
+        <div class="panel-head panel-head-tight">
+          <div>
+            <div class="section-title">File Watcher</div>
+            <h2>Änderungen (24h)</h2>
+          </div>
+        </div>
+        
+        <div id="fileBox" class="activity-feed" style="margin-top: 12px; max-height: 400px; overflow-y: auto; padding-right: 8px;">
+          <div class="activity-loading">Analysiere Workspace...</div>
+        </div>
+      </article>
+
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const PROJECT_ID = "{{ project.id }}";
+let liveActive = true;
+let liveTimer = null;
+
+/* -- Terminal Log -- */
+
+function toggleLive() {
+  liveActive = !liveActive;
+  document.getElementById('liveBtn').textContent = liveActive ? '⏸ Live' : '▶ Live';
+  if (liveActive) { loadLog(); scheduleLive(); }
+  else clearTimeout(liveTimer);
+}
+
+function scheduleLive() {
+  clearTimeout(liveTimer);
+  if (liveActive) liveTimer = setTimeout(() => { loadLog(); scheduleLive(); }, 4000);
+}
+
+function scrollLogBottom() {
+  const b = document.getElementById('logBox');
+  b.scrollTop = b.scrollHeight;
+}
+
+function loadLog() {
+  fetch('{{ url_for("board.activity_log", pid=project.id) }}')
+    .then(r => r.json())
+    .then(d => {
+      const box = document.getElementById('logBox');
+      const atBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 60;
+      box.innerHTML = d.lines.map(l => {
+        const e = l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        let s = 'color: #9cdbcb;'; // base terminal color
+        if (/fehler|error|fail|exception|traceback/i.test(l)) s = 'color: #fca5a5;';
+        else if (/warn/i.test(l))                              s = 'color: #fef08a;';
+        else if (/\bOK\b|success|gestartet|erledigt/i.test(l)) s = 'color: #86efac;';
+        else if (/ INFO /i.test(l))                            s = 'color: #93c5fd;';
+        return `<div style="${s} white-space: pre-wrap; word-break: break-all;">${e}</div>`;
+      }).join('');
+      if (atBottom) scrollLogBottom();
+      document.getElementById('logCount').textContent = d.lines.length + ' Lines';
+      document.getElementById('logTs').textContent = 'Live • ' + new Date().toLocaleTimeString('de');
+    }).catch(() => {});
+}
+
+/* -- File Watcher -- */
+
+function loadFiles() {
+  fetch('{{ url_for("board.activity_files", pid=project.id) }}')
+    .then(r => r.json())
+    .then(d => {
+      const box = document.getElementById('fileBox');
+      if (!d.files.length) {
+        box.innerHTML = '<div class="activity-empty">Keine Datei-Ereignisse.</div>';
+        return;
+      }
+      box.innerHTML = d.files.map(f => {
+        const dir = f.path.split('/').slice(0,-1).join('/');
+        const ext = f.name.split('.').pop().toLowerCase();
+        const icons = {py:'🐍',sh:'⚡',json:'{ }',yml:'📋',yaml:'📋',md:'📝',html:'🌐',css:'🎨',js:'🌐',conf:'⚙',service:'⚙'};
+        const icon = icons[ext] || '📄';
+        return `
+          <div class="activity-item" style="cursor: default; padding: 12px 0;">
+            <div class="activity-icon-wrap" style="font-size: 14px;">${icon}</div>
+            <div class="activity-body">
+              <div class="activity-title">${f.name}</div>
+              <div class="activity-meta"><span>${f.time_label || f.mtime_str}</span> · <span>${dir}</span></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }).catch(() => {});
+}
+
+/* -- Bot Control -- */
+
+function updateBotStatus(data) {
+  const dot   = document.getElementById('botDot');
+  const state = document.getElementById('botState');
+  if (!data) { dot.style.background = 'var(--muted)'; dot.style.boxShadow = 'none'; state.textContent = 'Unbekannt'; return; }
+  const active = data.active;
+  dot.style.background   = active ? '#3fd0bf' : '#fca5a5';
+  dot.style.boxShadow    = active ? '0 0 12px rgba(63,208,191,0.6)' : '0 0 12px rgba(252,165,165,0.6)';
+  
+  state.innerHTML = active 
+    ? '<span style="color:#3fd0bf;">Active & Running</span>' 
+    : `<span style="color:#fca5a5;">Offline (${data.state || 'inactive'})</span>`;
+    
+  document.getElementById('btnStart').style.display   = active ? 'none' : 'flex';
+  document.getElementById('btnStop').disabled         = !active;
+  document.getElementById('btnRestart').disabled      = !active;
+}
+
+function loadBotStatus() {
+  fetch('{{ url_for("api.bot_status") }}').then(r => r.json()).then(updateBotStatus).catch(() => {});
+}
+
+function botAction(action) {
+  const msg = document.getElementById('botMsg');
+  msg.textContent = action === 'start' ? 'Initialisiere Start-Sequenz...' : action === 'stop' ? 'Herunterfahren...' : 'Neustart eingeleitet...';
+  ['btnStart','btnStop','btnRestart'].forEach(id => document.getElementById(id).disabled = true);
+  
+  const urlTemplate = "{{ url_for('api.bot_action', action='ACTION') }}";
+  const url = urlTemplate.replace('ACTION', action);
+  
+  fetch(url, {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      msg.textContent = d.error ? `Fehler: ${d.error}` : (d.ok ? 'Erfolgreich ausgeführt.' : `Status: ${d.state}`);
+      setTimeout(() => { msg.textContent = ''; loadBotStatus(); document.getElementById('btnStart').disabled = false; }, 2000);
+    })
+    .catch(e => { msg.textContent = 'Netzwerkfehler: ' + e; document.getElementById('btnStart').disabled = false;});
+}
+
+// Bootstrap
+loadLog();
+loadFiles();
+loadBotStatus();
+scheduleLive();
+setInterval(loadFiles, 30000);
+setInterval(loadBotStatus, 10000);
+</script>
+{% endblock %}
