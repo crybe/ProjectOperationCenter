@@ -29,6 +29,8 @@ logs/
 
 # Environment & Secrets
 .env
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
@@ -36,6 +38,22 @@ logs/
 *.bak
 *.old
 *.orig
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*secret*
+*token*
+*credentials*
+
+# Archives & Dumps
+*.dump
+*.tar
+*.tar.gz
+*.zip
+*.7z
+*.sqlite3
 
 # Node / Frontend
 node_modules/
@@ -43,6 +61,12 @@ dist/
 build/
 .eslintcache
 .stylelintcache
+.cache/
+
+# Virtual environments
+.venv/
+venv/
+instance/
 
 # IDEs
 .idea/

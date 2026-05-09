@@ -51,6 +51,6 @@ GROQ_LIMITS = {'day': 500_000, 'minute': 6_000}
 
 # Bot & Service URLs
 BOT_CTRL_URL = os.environ.get('BOT_CTRL_URL', 'http://localhost:5667')
-CTRL_TOKEN   = os.environ.get('CTRL_TOKEN',   'default-token')
+CTRL_TOKEN   = os.environ.get('CTRL_TOKEN',   '')
 PROM_URL     = os.environ.get('PROM_URL',     'http://localhost:9090/api/v1/query')
 n8n_BASE_URL = os.environ.get('N8N_BASE_URL', 'http://localhost:5678')

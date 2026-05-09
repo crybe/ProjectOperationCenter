@@ -719,7 +719,7 @@ export default function Growbox() {
             <div>
               <div className="flex items-center gap-3 mb-1">
                  <div className="h-[1px] w-8 bg-emerald-600/30" />
-                 <span className="text-tactical-label opacity-40">Operational_Node: ALPHA-01</span>
+                 <span className="text-tactical-label opacity-40">Operational_Node: homelab-server</span>
               </div>
               <h2 className="text-5xl sm:text-7xl font-black text-emerald-500 tracking-tighter uppercase italic flex items-center gap-6 drop-shadow-[0_8px_24px_rgba(0,0,0,0.7)]">
                 Growth<span className="text-emerald-700">_OS</span>

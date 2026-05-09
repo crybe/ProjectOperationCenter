@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'devhub-secret-2026-tactical-fallback')
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'change-me-set-a-real-secret-key')
     
     # Pfad-Erkennung
     PROJ_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -38,5 +38,5 @@ class Config:
     def validate(cls):
         if not os.path.exists(cls.DATA_PATH): os.makedirs(cls.DATA_PATH, exist_ok=True)
         if not os.path.exists(cls.LOG_DIR): os.makedirs(cls.LOG_DIR, exist_ok=True)
-        if cls.SECRET_KEY == 'devhub-secret-2026-tactical-fallback':
-            print('WARNING: Using default SECRET_KEY.')
+        if cls.SECRET_KEY == 'change-me-set-a-real-secret-key':
+            print('WARNING: Using default SECRET_KEY. Set SECRET_KEY in your .env file!')

@@ -55,10 +55,10 @@ def create_app():
             
         if request.path.startswith('/api/'):
             import traceback
-            error_details = traceback.format_exc() if app.debug or True else 'Kontaktieren Sie den Administrator'
+            error_details = traceback.format_exc() if app.debug else 'Interner Serverfehler'
             return jsonify({
-                'ok': False, 
-                'error': 'Interner Serverfehler', 
+                'ok': False,
+                'error': 'Interner Serverfehler',
                 'details': error_details
             }), 500
         return render('500.html', error=str(e)), 500

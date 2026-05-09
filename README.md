@@ -33,8 +33,8 @@ Das (Nexus Command Hub) dient als zentrale Kommandozentrale für technik-affine 
 
 ### 1. Repository klonen
 ```bash
-git clone https://github.com/your-username/project-dashboard.git
-cd project-dashboard
+git clone https://github.com/crybe/ProjectOperationCenter.git
+cd ProjectOperationCenter
 ```
 
 ### 2. Konfiguration
@@ -66,7 +66,12 @@ Das Dashboard ist anschließend unter `http://localhost:5666` erreichbar.
 ---
 
 ## 🛡️ Sicherheitshinweis
+
+> **Do not expose this dashboard directly to the public internet.**
+
 Dieses Projekt ist für den Einsatz im privaten Netzwerk konzipiert. Stellen Sie sicher, dass der Zugang von außen nur über gesicherte Tunnel (VPN) oder einen authentifizierten Reverse-Proxy erfolgt.
+
+**`docker-compose.yml` is intended for local/private homelab use only.** Bind-Ports sind standardmäßig auf `127.0.0.1` beschränkt und sollten nicht öffentlich erreichbar sein.
 
 **WICHTIG:** Committen Sie niemals Ihre `.env` Datei mit echten Zugangsdaten!
 

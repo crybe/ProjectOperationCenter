@@ -266,8 +266,6 @@ def grow_archive():
     provided = (request.args.get('passphrase') or '').strip()
     secret   = os.environ.get('ADMIN_PASSPHRASE', LOGIN_PASSWORD).strip()
     
-    print(f"[ARCHIVE] Auth check: received={provided[:3]}***, expected={secret[:3]}***", file=sys.stderr)
-    
     if provided != secret:
         return jsonify({'ok': False, 'error': 'PASS_REQUIRED'})
 
@@ -375,7 +373,7 @@ def grow_archive_post():
     password = data.get('password', '')
     
     # Simple passphrase check
-    secret = os.environ.get('ADMIN_PASSPHRASE', 'admin-dev')
+    secret = os.environ.get('ADMIN_PASSPHRASE', '')
     if password != secret:
         return jsonify({"ok": False, "error": "Ungültige Passphrase"}), 403
         
